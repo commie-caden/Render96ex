@@ -1,0 +1,1 @@
+/usr/bin/c++ -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/rt64_abi_test.dir/link.d CMakeFiles/rt64_abi_test.dir/tests/abi_test.cpp.o -o rt64_abi_test  -ldl

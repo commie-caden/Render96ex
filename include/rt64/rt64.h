@@ -5,8 +5,18 @@
 #ifndef RT64_H_INCLUDED
 #define RT64_H_INCLUDED
 
-#include <Windows.h>
+#if defined(_WIN32) || defined(_WIN64)
+#   include <Windows.h>
+#else
+#   include <dlfcn.h>
+    /* The inspector's message hook is Win32-shaped. On POSIX the game feeds it
+       SDL events instead, but the typedef must still exist for ABI parity. */
+    typedef unsigned int RT64_MSG;
+    typedef unsigned long long RT64_WPARAM;
+    typedef long long RT64_LPARAM;
+#endif
 #include <stdio.h>
+#include <string.h>
 
 // Material constants.
 #define RT64_MATERIAL_FILTER_POINT				0
@@ -293,7 +303,11 @@ typedef void (*DestroyInstancePtr)(RT64_INSTANCE* instancePtr);
 typedef RT64_TEXTURE* (*CreateTexturePtr)(RT64_DEVICE* devicePtr, RT64_TEXTURE_DESC textureDesc);
 typedef void (*DestroyTexturePtr)(RT64_TEXTURE* texture);
 typedef RT64_INSPECTOR* (*CreateInspectorPtr)(RT64_DEVICE* devicePtr);
+#if defined(_WIN32) || defined(_WIN64)
 typedef bool (*HandleMessageInspectorPtr)(RT64_INSPECTOR* inspectorPtr, UINT msg, WPARAM wParam, LPARAM lParam);
+#else
+typedef bool (*HandleMessageInspectorPtr)(RT64_INSPECTOR* inspectorPtr, RT64_MSG msg, RT64_WPARAM wParam, RT64_LPARAM lParam);
+#endif
 typedef void (*SetSceneInspectorPtr)(RT64_INSPECTOR* inspectorPtr, RT64_SCENE_DESC* sceneDesc);
 typedef void (*SetMaterialInspectorPtr)(RT64_INSPECTOR* inspectorPtr, RT64_MATERIAL* material, const char *materialName);
 typedef void (*SetLightsInspectorPtr)(RT64_INSPECTOR* inspectorPtr, RT64_LIGHT* lights, int *lightCount, int maxLightCount);
@@ -303,7 +317,7 @@ typedef void (*DestroyInspectorPtr)(RT64_INSPECTOR* inspectorPtr);
 
 // Stores all the function pointers used in the RT64 library.
 typedef struct {
-	HMODULE handle;
+	void *handle;
 	GetLastErrorPtr GetLastError;
 	CreateDevicePtr CreateDevice;
 	DestroyDevicePtr DestroyDevice;
@@ -343,66 +357,94 @@ typedef struct {
 
 
 // Define RT64_DEBUG for loading the debug DLL.
-inline RT64_LIBRARY RT64_LoadLibrary() {
-	RT64_LIBRARY lib;
-
-#if defined(RT64_MINIMAL)
-	lib.handle = LoadLibrary(TEXT("rt64libm.dll"));
-#elif defined(RT64_DEBUG)
-	lib.handle = LoadLibrary(TEXT("rt64libd.dll"));
+#if defined(_WIN32) || defined(_WIN64)
+#   define RT64_SYM(h, n) GetProcAddress((HMODULE)(h), n)
 #else
-	lib.handle = LoadLibrary(TEXT("rt64lib.dll"));
+#   define RT64_SYM(h, n) dlsym((h), n)
+#endif
+
+inline RT64_LIBRARY RT64_LoadLibrary() {
+	/* Zero first: on a failed load the function pointers are never assigned,
+	   and callers should see null rather than stack garbage. memset rather
+	   than {0} so this stays warning-free from both C and C++. */
+	RT64_LIBRARY lib;
+	memset(&lib, 0, sizeof(RT64_LIBRARY));
+
+#if defined(_WIN32) || defined(_WIN64)
+#   if defined(RT64_MINIMAL)
+	lib.handle = (void *)LoadLibrary(TEXT("rt64libm.dll"));
+#   elif defined(RT64_DEBUG)
+	lib.handle = (void *)LoadLibrary(TEXT("rt64libd.dll"));
+#   else
+	lib.handle = (void *)LoadLibrary(TEXT("rt64lib.dll"));
+#   endif
+#else
+	/* Prefer a build sitting next to the executable, then the system path. */
+	lib.handle = dlopen("librt64.so", RTLD_NOW | RTLD_LOCAL);
+	if (lib.handle == 0) {
+		lib.handle = dlopen("./librt64.so", RTLD_NOW | RTLD_LOCAL);
+	}
 #endif
 
 	if (lib.handle != 0) {
-		lib.GetLastError = (GetLastErrorPtr)(GetProcAddress(lib.handle, "RT64_GetLastError"));
-		lib.CreateDevice = (CreateDevicePtr)(GetProcAddress(lib.handle, "RT64_CreateDevice"));
-		lib.DestroyDevice = (DestroyDevicePtr)(GetProcAddress(lib.handle, "RT64_DestroyDevice"));
+		lib.GetLastError = (GetLastErrorPtr)(RT64_SYM(lib.handle, "RT64_GetLastError"));
+		lib.CreateDevice = (CreateDevicePtr)(RT64_SYM(lib.handle, "RT64_CreateDevice"));
+		lib.DestroyDevice = (DestroyDevicePtr)(RT64_SYM(lib.handle, "RT64_DestroyDevice"));
 
 #ifndef RT64_MINIMAL
-		lib.DrawDevice = (DrawDevicePtr)(GetProcAddress(lib.handle, "RT64_DrawDevice"));
-		lib.CreateView = (CreateViewPtr)(GetProcAddress(lib.handle, "RT64_CreateView"));
-		lib.SetViewPerspective = (SetViewPerspectivePtr)(GetProcAddress(lib.handle, "RT64_SetViewPerspective"));
-		lib.SetViewDescription = (SetViewDescriptionPtr)(GetProcAddress(lib.handle, "RT64_SetViewDescription"));
-		lib.SetViewSkyPlane = (SetViewSkyPlanePtr)(GetProcAddress(lib.handle, "RT64_SetViewSkyPlane"));
-		lib.GetViewRaytracedInstanceAt = (GetViewRaytracedInstanceAtPtr)(GetProcAddress(lib.handle, "RT64_GetViewRaytracedInstanceAt"));
-		lib.GetViewUpscalerSupport = (GetViewUpscalerSupportPtr)(GetProcAddress(lib.handle, "RT64_GetViewUpscalerSupport"));
-		lib.DestroyView = (DestroyViewPtr)(GetProcAddress(lib.handle, "RT64_DestroyView"));
-		lib.CreateScene = (CreateScenePtr)(GetProcAddress(lib.handle, "RT64_CreateScene"));
-		lib.SetSceneDescription = (SetSceneDescriptionPtr)(GetProcAddress(lib.handle, "RT64_SetSceneDescription"));
-		lib.SetSceneLights = (SetSceneLightsPtr)(GetProcAddress(lib.handle, "RT64_SetSceneLights"));
-		lib.DestroyScene = (DestroyScenePtr)(GetProcAddress(lib.handle, "RT64_DestroyScene"));
-		lib.CreateMesh = (CreateMeshPtr)(GetProcAddress(lib.handle, "RT64_CreateMesh"));
-		lib.SetMesh = (SetMeshPtr)(GetProcAddress(lib.handle, "RT64_SetMesh"));
-		lib.DestroyMesh = (DestroyMeshPtr)(GetProcAddress(lib.handle, "RT64_DestroyMesh"));
-		lib.CreateShader = (CreateShaderPtr)(GetProcAddress(lib.handle, "RT64_CreateShader"));
-		lib.DestroyShader = (DestroyShaderPtr)(GetProcAddress(lib.handle, "RT64_DestroyShader"));
-		lib.CreateInstance = (CreateInstancePtr)(GetProcAddress(lib.handle, "RT64_CreateInstance"));
-		lib.SetInstanceDescription = (SetInstanceDescriptionPtr)(GetProcAddress(lib.handle, "RT64_SetInstanceDescription"));
-		lib.DestroyInstance = (DestroyInstancePtr)(GetProcAddress(lib.handle, "RT64_DestroyInstance"));
-		lib.CreateTexture = (CreateTexturePtr)(GetProcAddress(lib.handle, "RT64_CreateTexture"));
-		lib.DestroyTexture = (DestroyTexturePtr)(GetProcAddress(lib.handle, "RT64_DestroyTexture"));
-		lib.CreateInspector = (CreateInspectorPtr)(GetProcAddress(lib.handle, "RT64_CreateInspector"));
-		lib.HandleMessageInspector = (HandleMessageInspectorPtr)(GetProcAddress(lib.handle, "RT64_HandleMessageInspector"));
-		lib.SetSceneInspector = (SetSceneInspectorPtr)(GetProcAddress(lib.handle, "RT64_SetSceneInspector"));
-		lib.SetMaterialInspector = (SetMaterialInspectorPtr)(GetProcAddress(lib.handle, "RT64_SetMaterialInspector"));
-		lib.SetLightsInspector = (SetLightsInspectorPtr)(GetProcAddress(lib.handle, "RT64_SetLightsInspector"));
-		lib.PrintClearInspector = (PrintClearInspectorPtr)(GetProcAddress(lib.handle, "RT64_PrintClearInspector"));
-		lib.PrintMessageInspector = (PrintMessageInspectorPtr)(GetProcAddress(lib.handle, "RT64_PrintMessageInspector"));
-		lib.DestroyInspector = (DestroyInspectorPtr)(GetProcAddress(lib.handle, "RT64_DestroyInspector"));
+		lib.DrawDevice = (DrawDevicePtr)(RT64_SYM(lib.handle, "RT64_DrawDevice"));
+		lib.CreateView = (CreateViewPtr)(RT64_SYM(lib.handle, "RT64_CreateView"));
+		lib.SetViewPerspective = (SetViewPerspectivePtr)(RT64_SYM(lib.handle, "RT64_SetViewPerspective"));
+		lib.SetViewDescription = (SetViewDescriptionPtr)(RT64_SYM(lib.handle, "RT64_SetViewDescription"));
+		lib.SetViewSkyPlane = (SetViewSkyPlanePtr)(RT64_SYM(lib.handle, "RT64_SetViewSkyPlane"));
+		lib.GetViewRaytracedInstanceAt = (GetViewRaytracedInstanceAtPtr)(RT64_SYM(lib.handle, "RT64_GetViewRaytracedInstanceAt"));
+		lib.GetViewUpscalerSupport = (GetViewUpscalerSupportPtr)(RT64_SYM(lib.handle, "RT64_GetViewUpscalerSupport"));
+		lib.DestroyView = (DestroyViewPtr)(RT64_SYM(lib.handle, "RT64_DestroyView"));
+		lib.CreateScene = (CreateScenePtr)(RT64_SYM(lib.handle, "RT64_CreateScene"));
+		lib.SetSceneDescription = (SetSceneDescriptionPtr)(RT64_SYM(lib.handle, "RT64_SetSceneDescription"));
+		lib.SetSceneLights = (SetSceneLightsPtr)(RT64_SYM(lib.handle, "RT64_SetSceneLights"));
+		lib.DestroyScene = (DestroyScenePtr)(RT64_SYM(lib.handle, "RT64_DestroyScene"));
+		lib.CreateMesh = (CreateMeshPtr)(RT64_SYM(lib.handle, "RT64_CreateMesh"));
+		lib.SetMesh = (SetMeshPtr)(RT64_SYM(lib.handle, "RT64_SetMesh"));
+		lib.DestroyMesh = (DestroyMeshPtr)(RT64_SYM(lib.handle, "RT64_DestroyMesh"));
+		lib.CreateShader = (CreateShaderPtr)(RT64_SYM(lib.handle, "RT64_CreateShader"));
+		lib.DestroyShader = (DestroyShaderPtr)(RT64_SYM(lib.handle, "RT64_DestroyShader"));
+		lib.CreateInstance = (CreateInstancePtr)(RT64_SYM(lib.handle, "RT64_CreateInstance"));
+		lib.SetInstanceDescription = (SetInstanceDescriptionPtr)(RT64_SYM(lib.handle, "RT64_SetInstanceDescription"));
+		lib.DestroyInstance = (DestroyInstancePtr)(RT64_SYM(lib.handle, "RT64_DestroyInstance"));
+		lib.CreateTexture = (CreateTexturePtr)(RT64_SYM(lib.handle, "RT64_CreateTexture"));
+		lib.DestroyTexture = (DestroyTexturePtr)(RT64_SYM(lib.handle, "RT64_DestroyTexture"));
+		lib.CreateInspector = (CreateInspectorPtr)(RT64_SYM(lib.handle, "RT64_CreateInspector"));
+		lib.HandleMessageInspector = (HandleMessageInspectorPtr)(RT64_SYM(lib.handle, "RT64_HandleMessageInspector"));
+		lib.SetSceneInspector = (SetSceneInspectorPtr)(RT64_SYM(lib.handle, "RT64_SetSceneInspector"));
+		lib.SetMaterialInspector = (SetMaterialInspectorPtr)(RT64_SYM(lib.handle, "RT64_SetMaterialInspector"));
+		lib.SetLightsInspector = (SetLightsInspectorPtr)(RT64_SYM(lib.handle, "RT64_SetLightsInspector"));
+		lib.PrintClearInspector = (PrintClearInspectorPtr)(RT64_SYM(lib.handle, "RT64_PrintClearInspector"));
+		lib.PrintMessageInspector = (PrintMessageInspectorPtr)(RT64_SYM(lib.handle, "RT64_PrintMessageInspector"));
+		lib.DestroyInspector = (DestroyInspectorPtr)(RT64_SYM(lib.handle, "RT64_DestroyInspector"));
 #endif
 	}
 	else {
+#if defined(_WIN32) || defined(_WIN64)
 		char errorMessage[256];
 		FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, NULL, GetLastError(), MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), errorMessage, sizeof(errorMessage), NULL);
 		fprintf(stderr, "Error when loading library: %s\n", errorMessage);
+#else
+		fprintf(stderr, "Error when loading library: %s\n", dlerror());
+#endif
 	}
 
 	return lib;
 }
 
 inline void RT64_UnloadLibrary(RT64_LIBRARY lib) {
-	FreeLibrary(lib.handle);
+#if defined(_WIN32) || defined(_WIN64)
+	FreeLibrary((HMODULE)lib.handle);
+#else
+	if (lib.handle != 0) {
+		dlclose(lib.handle);
+	}
+#endif
 }
 
 #endif
