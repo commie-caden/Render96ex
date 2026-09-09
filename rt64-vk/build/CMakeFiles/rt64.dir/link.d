@@ -5,6 +5,7 @@ librt64.so: \
   CMakeFiles/rt64.dir/src/vulkan/rt64_device_vk.cpp.o \
   CMakeFiles/rt64.dir/src/vulkan/rt64_swapchain_vk.cpp.o \
   CMakeFiles/rt64.dir/src/vulkan/rt64_shaders_vk.cpp.o \
+  CMakeFiles/rt64.dir/src/vulkan/rt64_raytracing_vk.cpp.o \
   CMakeFiles/rt64.dir/src/vulkan/rt64_vma_impl.cpp.o \
   /usr/lib64/libvulkan.so \
   /usr/lib/gcc/x86_64-redhat-linux/16/../../../../lib64/libdl.a \
@@ -52,6 +53,8 @@ CMakeFiles/rt64.dir/src/vulkan/rt64_device_vk.cpp.o:
 CMakeFiles/rt64.dir/src/vulkan/rt64_swapchain_vk.cpp.o:
 
 CMakeFiles/rt64.dir/src/vulkan/rt64_shaders_vk.cpp.o:
+
+CMakeFiles/rt64.dir/src/vulkan/rt64_raytracing_vk.cpp.o:
 
 CMakeFiles/rt64.dir/src/vulkan/rt64_vma_impl.cpp.o:
 

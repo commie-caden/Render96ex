@@ -153,6 +153,19 @@ rt64_shaders/fast:
 .PHONY : rt64_shaders/fast
 
 #=============================================================================
+# Target rules for targets named rt64_test_shaders
+
+# Build rule for target.
+rt64_test_shaders: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 rt64_test_shaders
+.PHONY : rt64_test_shaders
+
+# fast build rule for target.
+rt64_test_shaders/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64_test_shaders.dir/build.make CMakeFiles/rt64_test_shaders.dir/build
+.PHONY : rt64_test_shaders/fast
+
+#=============================================================================
 # Target rules for targets named rt64_abi_test
 
 # Build rule for target.
@@ -204,6 +217,32 @@ rt64_shader_test/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64_shader_test.dir/build.make CMakeFiles/rt64_shader_test.dir/build
 .PHONY : rt64_shader_test/fast
 
+#=============================================================================
+# Target rules for targets named rt64_raster_test
+
+# Build rule for target.
+rt64_raster_test: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 rt64_raster_test
+.PHONY : rt64_raster_test
+
+# fast build rule for target.
+rt64_raster_test/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64_raster_test.dir/build.make CMakeFiles/rt64_raster_test.dir/build
+.PHONY : rt64_raster_test/fast
+
+#=============================================================================
+# Target rules for targets named rt64_raytrace_test
+
+# Build rule for target.
+rt64_raytrace_test: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 rt64_raytrace_test
+.PHONY : rt64_raytrace_test
+
+# fast build rule for target.
+rt64_raytrace_test/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64_raytrace_test.dir/build.make CMakeFiles/rt64_raytrace_test.dir/build
+.PHONY : rt64_raytrace_test/fast
+
 src/vulkan/rt64_device_vk.o: src/vulkan/rt64_device_vk.cpp.o
 .PHONY : src/vulkan/rt64_device_vk.o
 
@@ -227,6 +266,30 @@ src/vulkan/rt64_device_vk.s: src/vulkan/rt64_device_vk.cpp.s
 src/vulkan/rt64_device_vk.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64.dir/build.make CMakeFiles/rt64.dir/src/vulkan/rt64_device_vk.cpp.s
 .PHONY : src/vulkan/rt64_device_vk.cpp.s
+
+src/vulkan/rt64_raytracing_vk.o: src/vulkan/rt64_raytracing_vk.cpp.o
+.PHONY : src/vulkan/rt64_raytracing_vk.o
+
+# target to build an object file
+src/vulkan/rt64_raytracing_vk.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64.dir/build.make CMakeFiles/rt64.dir/src/vulkan/rt64_raytracing_vk.cpp.o
+.PHONY : src/vulkan/rt64_raytracing_vk.cpp.o
+
+src/vulkan/rt64_raytracing_vk.i: src/vulkan/rt64_raytracing_vk.cpp.i
+.PHONY : src/vulkan/rt64_raytracing_vk.i
+
+# target to preprocess a source file
+src/vulkan/rt64_raytracing_vk.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64.dir/build.make CMakeFiles/rt64.dir/src/vulkan/rt64_raytracing_vk.cpp.i
+.PHONY : src/vulkan/rt64_raytracing_vk.cpp.i
+
+src/vulkan/rt64_raytracing_vk.s: src/vulkan/rt64_raytracing_vk.cpp.s
+.PHONY : src/vulkan/rt64_raytracing_vk.s
+
+# target to generate assembly for a file
+src/vulkan/rt64_raytracing_vk.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64.dir/build.make CMakeFiles/rt64.dir/src/vulkan/rt64_raytracing_vk.cpp.s
+.PHONY : src/vulkan/rt64_raytracing_vk.cpp.s
 
 src/vulkan/rt64_shaders_vk.o: src/vulkan/rt64_shaders_vk.cpp.o
 .PHONY : src/vulkan/rt64_shaders_vk.o
@@ -372,6 +435,54 @@ tests/device_info.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64_device_info.dir/build.make CMakeFiles/rt64_device_info.dir/tests/device_info.cpp.s
 .PHONY : tests/device_info.cpp.s
 
+tests/raster_test.o: tests/raster_test.cpp.o
+.PHONY : tests/raster_test.o
+
+# target to build an object file
+tests/raster_test.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64_raster_test.dir/build.make CMakeFiles/rt64_raster_test.dir/tests/raster_test.cpp.o
+.PHONY : tests/raster_test.cpp.o
+
+tests/raster_test.i: tests/raster_test.cpp.i
+.PHONY : tests/raster_test.i
+
+# target to preprocess a source file
+tests/raster_test.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64_raster_test.dir/build.make CMakeFiles/rt64_raster_test.dir/tests/raster_test.cpp.i
+.PHONY : tests/raster_test.cpp.i
+
+tests/raster_test.s: tests/raster_test.cpp.s
+.PHONY : tests/raster_test.s
+
+# target to generate assembly for a file
+tests/raster_test.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64_raster_test.dir/build.make CMakeFiles/rt64_raster_test.dir/tests/raster_test.cpp.s
+.PHONY : tests/raster_test.cpp.s
+
+tests/raytrace_test.o: tests/raytrace_test.cpp.o
+.PHONY : tests/raytrace_test.o
+
+# target to build an object file
+tests/raytrace_test.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64_raytrace_test.dir/build.make CMakeFiles/rt64_raytrace_test.dir/tests/raytrace_test.cpp.o
+.PHONY : tests/raytrace_test.cpp.o
+
+tests/raytrace_test.i: tests/raytrace_test.cpp.i
+.PHONY : tests/raytrace_test.i
+
+# target to preprocess a source file
+tests/raytrace_test.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64_raytrace_test.dir/build.make CMakeFiles/rt64_raytrace_test.dir/tests/raytrace_test.cpp.i
+.PHONY : tests/raytrace_test.cpp.i
+
+tests/raytrace_test.s: tests/raytrace_test.cpp.s
+.PHONY : tests/raytrace_test.s
+
+# target to generate assembly for a file
+tests/raytrace_test.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64_raytrace_test.dir/build.make CMakeFiles/rt64_raytrace_test.dir/tests/raytrace_test.cpp.s
+.PHONY : tests/raytrace_test.cpp.s
+
 tests/shader_test.o: tests/shader_test.cpp.o
 .PHONY : tests/shader_test.o
 
@@ -430,14 +541,20 @@ help:
 	@echo "... rebuild_cache"
 	@echo "... test"
 	@echo "... rt64_shaders"
+	@echo "... rt64_test_shaders"
 	@echo "... rt64"
 	@echo "... rt64_abi_test"
 	@echo "... rt64_device_info"
+	@echo "... rt64_raster_test"
+	@echo "... rt64_raytrace_test"
 	@echo "... rt64_shader_test"
 	@echo "... rt64_window_test"
 	@echo "... src/vulkan/rt64_device_vk.o"
 	@echo "... src/vulkan/rt64_device_vk.i"
 	@echo "... src/vulkan/rt64_device_vk.s"
+	@echo "... src/vulkan/rt64_raytracing_vk.o"
+	@echo "... src/vulkan/rt64_raytracing_vk.i"
+	@echo "... src/vulkan/rt64_raytracing_vk.s"
 	@echo "... src/vulkan/rt64_shaders_vk.o"
 	@echo "... src/vulkan/rt64_shaders_vk.i"
 	@echo "... src/vulkan/rt64_shaders_vk.s"
@@ -456,6 +573,12 @@ help:
 	@echo "... tests/device_info.o"
 	@echo "... tests/device_info.i"
 	@echo "... tests/device_info.s"
+	@echo "... tests/raster_test.o"
+	@echo "... tests/raster_test.i"
+	@echo "... tests/raster_test.s"
+	@echo "... tests/raytrace_test.o"
+	@echo "... tests/raytrace_test.i"
+	@echo "... tests/raytrace_test.s"
 	@echo "... tests/shader_test.o"
 	@echo "... tests/shader_test.i"
 	@echo "... tests/shader_test.s"

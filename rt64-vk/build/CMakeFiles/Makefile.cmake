@@ -54,8 +54,11 @@ set(CMAKE_MAKEFILE_PRODUCTS
 set(CMAKE_DEPEND_INFO_FILES
   "CMakeFiles/rt64.dir/DependInfo.cmake"
   "CMakeFiles/rt64_shaders.dir/DependInfo.cmake"
+  "CMakeFiles/rt64_test_shaders.dir/DependInfo.cmake"
   "CMakeFiles/rt64_abi_test.dir/DependInfo.cmake"
   "CMakeFiles/rt64_device_info.dir/DependInfo.cmake"
   "CMakeFiles/rt64_window_test.dir/DependInfo.cmake"
   "CMakeFiles/rt64_shader_test.dir/DependInfo.cmake"
+  "CMakeFiles/rt64_raster_test.dir/DependInfo.cmake"
+  "CMakeFiles/rt64_raytrace_test.dir/DependInfo.cmake"
   )

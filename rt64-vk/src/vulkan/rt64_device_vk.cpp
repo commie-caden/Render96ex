@@ -96,8 +96,8 @@ bool DeviceVK::createInstance(std::string &error) {
 
     /* Ask for 1.4 but do not hard-fail below it: ray tracing is an extension
        at every version, so a 1.2 loader can still run this. */
-    if (loaderVersion < VK_API_VERSION_1_2) {
-        error = "Vulkan 1.2 or newer is required; loader reports " +
+    if (loaderVersion < VK_API_VERSION_1_3) {
+        error = "Vulkan 1.3 or newer is required; loader reports " +
                 std::to_string(VK_VERSION_MAJOR(loaderVersion)) + "." +
                 std::to_string(VK_VERSION_MINOR(loaderVersion));
         return false;
@@ -165,9 +165,12 @@ int DeviceVK::scoreDevice(VkPhysicalDevice candidate,
         reason = "maxPerStageDescriptorSampledImages < 512";
         return -1;
     }
+    /* Dynamic rendering (core in 1.3) lets us skip VkRenderPass and
+       VkFramebuffer entirely. Any GPU that can do KHR ray tracing has a 1.3
+       driver, so requiring it costs nothing and removes a lot of code. */
     if (VK_VERSION_MAJOR(props.apiVersion) == 1 &&
-        VK_VERSION_MINOR(props.apiVersion) < 2) {
-        reason = "device API older than 1.2";
+        VK_VERSION_MINOR(props.apiVersion) < 3) {
+        reason = "device API older than 1.3 (need dynamic rendering)";
         return -1;
     }
 
@@ -292,6 +295,12 @@ bool DeviceVK::createLogicalDevice(std::string &error) {
     asFeatures.accelerationStructure = VK_TRUE;
     asFeatures.pNext = &rtFeatures;
 
+    VkPhysicalDeviceVulkan13Features vk13 = {};
+    vk13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
+    vk13.dynamicRendering = VK_TRUE;
+    vk13.synchronization2 = VK_TRUE;
+    vk13.pNext = &asFeatures;
+
     VkPhysicalDeviceVulkan12Features vk12 = {};
     vk12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
     vk12.bufferDeviceAddress = VK_TRUE;
@@ -301,7 +310,7 @@ bool DeviceVK::createLogicalDevice(std::string &error) {
     vk12.descriptorBindingVariableDescriptorCount = VK_TRUE;
     vk12.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
     vk12.scalarBlockLayout = VK_TRUE;
-    vk12.pNext = &asFeatures;
+    vk12.pNext = &vk13;
 
     VkPhysicalDeviceFeatures2 features2 = {};
     features2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;

@@ -128,10 +128,24 @@ CMakeFiles/rt64.dir/src/vulkan/rt64_shaders_vk.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/rt64.dir/src/vulkan/rt64_shaders_vk.cpp.s"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /var/home/gamer/Projects/Render96ex_vkrt/rt64-vk/src/vulkan/rt64_shaders_vk.cpp -o CMakeFiles/rt64.dir/src/vulkan/rt64_shaders_vk.cpp.s
 
+CMakeFiles/rt64.dir/src/vulkan/rt64_raytracing_vk.cpp.o: CMakeFiles/rt64.dir/flags.make
+CMakeFiles/rt64.dir/src/vulkan/rt64_raytracing_vk.cpp.o: /var/home/gamer/Projects/Render96ex_vkrt/rt64-vk/src/vulkan/rt64_raytracing_vk.cpp
+CMakeFiles/rt64.dir/src/vulkan/rt64_raytracing_vk.cpp.o: CMakeFiles/rt64.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/var/home/gamer/Projects/Render96ex_vkrt/rt64-vk/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_5) "Building CXX object CMakeFiles/rt64.dir/src/vulkan/rt64_raytracing_vk.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/rt64.dir/src/vulkan/rt64_raytracing_vk.cpp.o -MF CMakeFiles/rt64.dir/src/vulkan/rt64_raytracing_vk.cpp.o.d -o CMakeFiles/rt64.dir/src/vulkan/rt64_raytracing_vk.cpp.o -c /var/home/gamer/Projects/Render96ex_vkrt/rt64-vk/src/vulkan/rt64_raytracing_vk.cpp
+
+CMakeFiles/rt64.dir/src/vulkan/rt64_raytracing_vk.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/rt64.dir/src/vulkan/rt64_raytracing_vk.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /var/home/gamer/Projects/Render96ex_vkrt/rt64-vk/src/vulkan/rt64_raytracing_vk.cpp > CMakeFiles/rt64.dir/src/vulkan/rt64_raytracing_vk.cpp.i
+
+CMakeFiles/rt64.dir/src/vulkan/rt64_raytracing_vk.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/rt64.dir/src/vulkan/rt64_raytracing_vk.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /var/home/gamer/Projects/Render96ex_vkrt/rt64-vk/src/vulkan/rt64_raytracing_vk.cpp -o CMakeFiles/rt64.dir/src/vulkan/rt64_raytracing_vk.cpp.s
+
 CMakeFiles/rt64.dir/src/vulkan/rt64_vma_impl.cpp.o: CMakeFiles/rt64.dir/flags.make
 CMakeFiles/rt64.dir/src/vulkan/rt64_vma_impl.cpp.o: /var/home/gamer/Projects/Render96ex_vkrt/rt64-vk/src/vulkan/rt64_vma_impl.cpp
 CMakeFiles/rt64.dir/src/vulkan/rt64_vma_impl.cpp.o: CMakeFiles/rt64.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/var/home/gamer/Projects/Render96ex_vkrt/rt64-vk/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_5) "Building CXX object CMakeFiles/rt64.dir/src/vulkan/rt64_vma_impl.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/var/home/gamer/Projects/Render96ex_vkrt/rt64-vk/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_6) "Building CXX object CMakeFiles/rt64.dir/src/vulkan/rt64_vma_impl.cpp.o"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -w -MD -MT CMakeFiles/rt64.dir/src/vulkan/rt64_vma_impl.cpp.o -MF CMakeFiles/rt64.dir/src/vulkan/rt64_vma_impl.cpp.o.d -o CMakeFiles/rt64.dir/src/vulkan/rt64_vma_impl.cpp.o -c /var/home/gamer/Projects/Render96ex_vkrt/rt64-vk/src/vulkan/rt64_vma_impl.cpp
 
 CMakeFiles/rt64.dir/src/vulkan/rt64_vma_impl.cpp.i: cmake_force
@@ -148,6 +162,7 @@ rt64_OBJECTS = \
 "CMakeFiles/rt64.dir/src/vulkan/rt64_device_vk.cpp.o" \
 "CMakeFiles/rt64.dir/src/vulkan/rt64_swapchain_vk.cpp.o" \
 "CMakeFiles/rt64.dir/src/vulkan/rt64_shaders_vk.cpp.o" \
+"CMakeFiles/rt64.dir/src/vulkan/rt64_raytracing_vk.cpp.o" \
 "CMakeFiles/rt64.dir/src/vulkan/rt64_vma_impl.cpp.o"
 
 # External object files for target rt64
@@ -157,13 +172,14 @@ librt64.so: CMakeFiles/rt64.dir/src/vulkan/rt64_stub.cpp.o
 librt64.so: CMakeFiles/rt64.dir/src/vulkan/rt64_device_vk.cpp.o
 librt64.so: CMakeFiles/rt64.dir/src/vulkan/rt64_swapchain_vk.cpp.o
 librt64.so: CMakeFiles/rt64.dir/src/vulkan/rt64_shaders_vk.cpp.o
+librt64.so: CMakeFiles/rt64.dir/src/vulkan/rt64_raytracing_vk.cpp.o
 librt64.so: CMakeFiles/rt64.dir/src/vulkan/rt64_vma_impl.cpp.o
 librt64.so: CMakeFiles/rt64.dir/build.make
 librt64.so: CMakeFiles/rt64.dir/compiler_depend.ts
 librt64.so: /usr/lib64/libvulkan.so
 librt64.so: /usr/lib64/libSDL2.so
 librt64.so: CMakeFiles/rt64.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/var/home/gamer/Projects/Render96ex_vkrt/rt64-vk/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_6) "Linking CXX shared library librt64.so"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/var/home/gamer/Projects/Render96ex_vkrt/rt64-vk/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_7) "Linking CXX shared library librt64.so"
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/rt64.dir/link.txt --verbose=$(VERBOSE)
 
 # Rule to build all files generated by this target.

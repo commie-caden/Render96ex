@@ -1,9 +1,12 @@
 /var/home/gamer/Projects/Render96ex_vkrt/rt64-vk/build/CMakeFiles/rt64.dir
 /var/home/gamer/Projects/Render96ex_vkrt/rt64-vk/build/CMakeFiles/rt64_shaders.dir
+/var/home/gamer/Projects/Render96ex_vkrt/rt64-vk/build/CMakeFiles/rt64_test_shaders.dir
 /var/home/gamer/Projects/Render96ex_vkrt/rt64-vk/build/CMakeFiles/rt64_abi_test.dir
 /var/home/gamer/Projects/Render96ex_vkrt/rt64-vk/build/CMakeFiles/rt64_device_info.dir
 /var/home/gamer/Projects/Render96ex_vkrt/rt64-vk/build/CMakeFiles/rt64_window_test.dir
 /var/home/gamer/Projects/Render96ex_vkrt/rt64-vk/build/CMakeFiles/rt64_shader_test.dir
+/var/home/gamer/Projects/Render96ex_vkrt/rt64-vk/build/CMakeFiles/rt64_raster_test.dir
+/var/home/gamer/Projects/Render96ex_vkrt/rt64-vk/build/CMakeFiles/rt64_raytrace_test.dir
 /var/home/gamer/Projects/Render96ex_vkrt/rt64-vk/build/CMakeFiles/test.dir
 /var/home/gamer/Projects/Render96ex_vkrt/rt64-vk/build/CMakeFiles/edit_cache.dir
 /var/home/gamer/Projects/Render96ex_vkrt/rt64-vk/build/CMakeFiles/rebuild_cache.dir

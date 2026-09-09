@@ -34,6 +34,7 @@ if(RT64_BUILD_STUB)
         src/vulkan/rt64_device_vk.cpp
         src/vulkan/rt64_swapchain_vk.cpp
         src/vulkan/rt64_shaders_vk.cpp
+        src/vulkan/rt64_raytracing_vk.cpp
         src/vulkan/rt64_vma_impl.cpp
     )
 else()
@@ -125,6 +126,10 @@ if(RT64_BUILD_SHADERS)
         ${CMAKE_CURRENT_SOURCE_DIR}/src/shaders
         ${CMAKE_BINARY_DIR}/shaders)
     add_dependencies(rt64 rt64_shaders)
+    # Test-only shaders land in the same output directory.
+    rt64_compile_shaders(rt64_test_shaders
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/shaders
+        ${CMAKE_BINARY_DIR}/shaders)
     message(STATUS "RT64 shaders: dxc at ${RT64_DXC_EXECUTABLE}")
 endif()
 
@@ -165,4 +170,28 @@ target_include_directories(rt64_shader_test SYSTEM PRIVATE
 target_link_libraries(rt64_shader_test PRIVATE rt64 Vulkan::Vulkan PkgConfig::SDL2)
 if(RT64_BUILD_SHADERS)
     add_dependencies(rt64_shader_test rt64_shaders)
+endif()
+
+# Phase 2 milestone: fullscreen triangle through RT64's own shaders.
+add_executable(rt64_raster_test tests/raster_test.cpp)
+target_include_directories(rt64_raster_test PRIVATE
+    ${RT64_PUBLIC_INCLUDE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/vulkan)
+target_include_directories(rt64_raster_test SYSTEM PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/contrib/vma)
+target_link_libraries(rt64_raster_test PRIVATE rt64 Vulkan::Vulkan PkgConfig::SDL2)
+if(RT64_BUILD_SHADERS)
+    add_dependencies(rt64_raster_test rt64_shaders)
+endif()
+
+# Phase 3 milestone: BLAS/TLAS, ray tracing pipeline, SBT, vkCmdTraceRaysKHR.
+add_executable(rt64_raytrace_test tests/raytrace_test.cpp)
+target_include_directories(rt64_raytrace_test PRIVATE
+    ${RT64_PUBLIC_INCLUDE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/vulkan)
+target_include_directories(rt64_raytrace_test SYSTEM PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/contrib/vma)
+target_link_libraries(rt64_raytrace_test PRIVATE rt64 Vulkan::Vulkan PkgConfig::SDL2)
+if(RT64_BUILD_SHADERS)
+    add_dependencies(rt64_raytrace_test rt64_shaders rt64_test_shaders)
 endif()

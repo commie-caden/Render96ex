@@ -8,8 +8,30 @@
 # Installs into rt64-vk/third_party/dxc, where CMake looks by default.
 
 set -euo pipefail
-HERE="$(cd "$(dirname "$0")/.." && pwd)"
+
+# Locate the rt64-vk root by walking up from the script, so this works whether
+# it sits in rt64-vk/tools/ (where it ships) or in rt64-vk/ itself.
+find_root() {
+    local d
+    d="$(cd "$(dirname "$0")" && pwd)"
+    while [ "$d" != "/" ]; do
+        if [ -f "$d/CMakeLists.txt" ] && grep -q 'project(rt64' "$d/CMakeLists.txt" 2>/dev/null; then
+            printf '%s\n' "$d"
+            return 0
+        fi
+        d="$(dirname "$d")"
+    done
+    return 1
+}
+
+if ! HERE="$(find_root)"; then
+    echo "Could not find the rt64-vk root (no CMakeLists.txt with project(rt64)"
+    echo "at or above $(dirname "$0"))."
+    echo "Run this from inside the rt64-vk tree."
+    exit 1
+fi
 DEST="$HERE/third_party/dxc"
+echo ":: rt64-vk root: $HERE"
 REPO="https://github.com/microsoft/DirectXShaderCompiler"
 
 if [ -x "$DEST/bin/dxc" ]; then

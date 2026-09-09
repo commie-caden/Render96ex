@@ -1,5 +1,5 @@
 b49c1325021679d154cf526ca7dae8eca0b7c4539aef8d577cdd9cebac3cd90c  ../include/rt64/rt64.h
-15d99b12940465b0acca445fd648413d091a90125420c3d22c94e7e1554cad1a  ../rt64-vk/CMakeLists.txt
+3ab103f143889d49f41c3c261bb8ca1b7bb0f81d8337cf7f377a1bc4a30f2f8e  ../rt64-vk/CMakeLists.txt
 e3428d813a2562154ccda57af3bca2433d8e1151de3b3e9bac93b1274efa71a4  ../rt64-vk/README.md
 f0b497646f72dd20f97d1bb5d6b0d0102336f539da7f90e2da7e713c62911766  ../rt64-vk/cmake/CompileShaders.cmake
 8487b7995ad3b263eb73bc5b9a77d71aa69b6bef5d58a715c02d2663afd81f1a  ../rt64-vk/contrib/vma/vk_mem_alloc.h
@@ -54,8 +54,11 @@ b246a2d151167de874b699b66c4c22875f1b1de47e9e3d120db21521a6f0965e  ../rt64-vk/src
 669fb71e2b94c018cf8ec3260b8bea9864407e696bb4f50e789b6511b040be2e  ../rt64-vk/src/shaders/ReflectionRayGen.hlsl
 0ec6541f751529d6f7c77c050f677ec85a0f24dde18bbc9775493c84f9fa8135  ../rt64-vk/src/shaders/RefractionRayGen.hlsl
 db0f9c73b62750d2eb0f42eb2abf7f1f7d23a5e769e01497f4461482cfca6a3e  ../rt64-vk/src/shaders/Textures.hlsli
-67bd0793f6524e9b7487c365058033bf1813c1d417433407332ab95600f0bd75  ../rt64-vk/src/vulkan/rt64_device_vk.cpp
+df74b98c8ce8e3ed169ccf12394cdaa9c3967c23be6cbab7d5656cc5e182b565  ../rt64-vk/src/vulkan/rt64_device_vk.cpp
 11a0776984f0c48b36cba8fde71271d7ba55cc20fe8aec8c312cb8abd4334ee3  ../rt64-vk/src/vulkan/rt64_device_vk.h
+f249baadbbe838b7feaa887b819632964e45f23ca0ac7a52da6c814e819f3498  ../rt64-vk/src/vulkan/rt64_global_params.h
+ed8b2918e750861483d01cd028c97452290c494053f09282b34ce907406f352d  ../rt64-vk/src/vulkan/rt64_raytracing_vk.cpp
+3e3549da235e062a2af64020bffd1689eaa8054e6c935e501d04844e115dafb2  ../rt64-vk/src/vulkan/rt64_raytracing_vk.h
 c571a2eb36916cd179f37739ce2edb22fdb57b995b049c5d06bcf1016a3f2a64  ../rt64-vk/src/vulkan/rt64_shaders_vk.cpp
 c9cf6d28f1ca3a5fabe2da70b315d0b052e45564e9563f00478db9b09fe140c5  ../rt64-vk/src/vulkan/rt64_shaders_vk.h
 14994d5a907733c68d67f2aebe3177fc8085be2410aefb25b85780cf96406fa4  ../rt64-vk/src/vulkan/rt64_stub.cpp
@@ -64,7 +67,10 @@ c303329ca3ef914d435eb07d74ce7f42b6d59f89c15a66d5a56630987777025a  ../rt64-vk/src
 0ae90811f296300ae093d54b5ea7ff65f2c11bbbe65fd95d5c95387ed43f4717  ../rt64-vk/src/vulkan/rt64_vma_impl.cpp
 96c9cedcb85822fa05d9ca46acf8cd744ba1f6ec58c8ebb97a7fa925a4775155  ../rt64-vk/tests/abi_test.cpp
 70a70b9f2a41f327f2e13019bf5cbd60e9c0b8e7aadfea7d9fb831a988aaa972  ../rt64-vk/tests/device_info.cpp
+a1678a800162b3d9f67d8a4f8577e0fd5415e5aed27f18ac5d6bb332279494f5  ../rt64-vk/tests/raster_test.cpp
+e6cd0b6c8c10fd50ac1f10a6af42db4fe48adba431a560efc8fc04a60d339670  ../rt64-vk/tests/raytrace_test.cpp
 b90d8d531f3a0f517e9090329501f26c6f5dbab5caf40198c821692e3e900307  ../rt64-vk/tests/shader_test.cpp
+f4999027d25061d32bcf77994b2a1f3bcb055304822662b439bae26d032f1508  ../rt64-vk/tests/shaders/TestRayGen.hlsl
 d08b04f1d9991b73b72b8885e0de2bac3aeb9ada0593c2ca3561c1a81f2cc338  ../rt64-vk/tests/window_test.cpp
-313acae10fecf48b33741bbf9796d71a7c7781f4b5df5f0de4c2db3d64e1b157  ../rt64-vk/tools/get_dxc.sh
+9740195e187661368fc15f6dfdb07159e7f599ca47d7512598d9706dc978e9f5  ../rt64-vk/tools/get_dxc.sh
 1b1938c3aa1a4c5de4b805510726b2a0f72fcb4ffa7f6e8b5a0c46c2f1862ec1  ../rt64-vk/verify_install.sh
