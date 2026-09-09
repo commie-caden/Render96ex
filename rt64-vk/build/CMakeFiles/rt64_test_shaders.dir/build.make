@@ -66,17 +66,17 @@ include CMakeFiles/rt64_test_shaders.dir/compiler_depend.make
 # Include the progress variables for this target.
 include CMakeFiles/rt64_test_shaders.dir/progress.make
 
-CMakeFiles/rt64_test_shaders: shaders/TestRayGen.spv
+CMakeFiles/rt64_test_shaders: test_shaders/TestRayGen.spv
 
-shaders/TestRayGen.spv: /var/home/gamer/Projects/Render96ex_vkrt/rt64-vk/tests/shaders/TestRayGen.hlsl
+test_shaders/TestRayGen.spv: /var/home/gamer/Projects/Render96ex_vkrt/rt64-vk/tests/shaders/TestRayGen.hlsl
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --blue --bold --progress-dir=/var/home/gamer/Projects/Render96ex_vkrt/rt64-vk/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "SPIR-V TestRayGen.spv (lib_6_3)"
-	/usr/bin/cmake -E env LD_LIBRARY_PATH=/var/home/gamer/Projects/Render96ex_vkrt/rt64-vk/third_party/dxc/bin/../lib: /var/home/gamer/Projects/Render96ex_vkrt/rt64-vk/third_party/dxc/bin/dxc -T lib_6_3 -spirv -HV 2018 -fspv-target-env=vulkan1.3 -fvk-u-shift 0 0 -fvk-t-shift 100 0 -fvk-b-shift 200 0 -fvk-s-shift 300 0 -I /var/home/gamer/Projects/Render96ex_vkrt/rt64-vk/tests/shaders /var/home/gamer/Projects/Render96ex_vkrt/rt64-vk/tests/shaders/TestRayGen.hlsl -Fo /var/home/gamer/Projects/Render96ex_vkrt/rt64-vk/build/shaders/TestRayGen.spv
+	/usr/bin/cmake -E env LD_LIBRARY_PATH=/var/home/gamer/Projects/Render96ex_vkrt/rt64-vk/third_party/dxc/bin/../lib: /var/home/gamer/Projects/Render96ex_vkrt/rt64-vk/third_party/dxc/bin/dxc -T lib_6_3 -spirv -HV 2018 -fspv-target-env=vulkan1.3 -fvk-u-shift 0 0 -fvk-t-shift 100 0 -fvk-b-shift 200 0 -fvk-s-shift 300 0 -I /var/home/gamer/Projects/Render96ex_vkrt/rt64-vk/tests/shaders /var/home/gamer/Projects/Render96ex_vkrt/rt64-vk/tests/shaders/TestRayGen.hlsl -Fo /var/home/gamer/Projects/Render96ex_vkrt/rt64-vk/build/test_shaders/TestRayGen.spv
 
 CMakeFiles/rt64_test_shaders.dir/codegen:
 .PHONY : CMakeFiles/rt64_test_shaders.dir/codegen
 
 rt64_test_shaders: CMakeFiles/rt64_test_shaders
-rt64_test_shaders: shaders/TestRayGen.spv
+rt64_test_shaders: test_shaders/TestRayGen.spv
 rt64_test_shaders: CMakeFiles/rt64_test_shaders.dir/build.make
 .PHONY : rt64_test_shaders
 

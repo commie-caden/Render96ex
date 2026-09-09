@@ -1,6 +1,6 @@
 file(REMOVE_RECURSE
   "CMakeFiles/rt64_test_shaders"
-  "shaders/TestRayGen.spv"
+  "test_shaders/TestRayGen.spv"
 )
 
 # Per-language clean rules from dependency scanning.

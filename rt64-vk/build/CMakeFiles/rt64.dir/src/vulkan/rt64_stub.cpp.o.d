@@ -130,6 +130,8 @@ CMakeFiles/rt64.dir/src/vulkan/rt64_stub.cpp.o: \
  /var/home/gamer/Projects/Render96ex_vkrt/rt64-vk/contrib/vma/vk_mem_alloc.h \
  /var/home/gamer/Projects/Render96ex_vkrt/rt64-vk/src/vulkan/rt64_mesh_vk.h \
  /var/home/gamer/Projects/Render96ex_vkrt/rt64-vk/src/vulkan/rt64_raytracing_vk.h \
+ /var/home/gamer/Projects/Render96ex_vkrt/rt64-vk/src/vulkan/rt64_texture_vk.h \
+ /var/home/gamer/Projects/Render96ex_vkrt/rt64-vk/src/vulkan/rt64_scene_vk.h \
  /usr/include/c++/16/memory /usr/include/c++/16/bits/stl_tempbuf.h \
  /usr/include/c++/16/bits/stl_raw_storage_iter.h \
  /usr/include/c++/16/bits/align.h /usr/include/c++/16/bits/unique_ptr.h \

@@ -39,7 +39,7 @@ struct Vertex { float x, y, z; };
 } /* namespace */
 
 int main(int argc, char **argv) {
-    std::string shaderDir = "shaders";
+    std::string shaderDir = "test_shaders";
     bool validation = false;
     int framesToRun = 0;
     for (int i = 1; i < argc; i++) {

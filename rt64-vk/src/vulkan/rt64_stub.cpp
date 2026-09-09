@@ -12,6 +12,8 @@
 #include "rt64/rt64.h"
 #include "rt64_device_vk.h"
 #include "rt64_mesh_vk.h"
+#include "rt64_texture_vk.h"
+#include "rt64_scene_vk.h"
 #include "rt64_raytracing_vk.h"
 
 #include <memory>
@@ -114,14 +116,25 @@ DLLEXPORT void RT64_DestroyInspector(RT64_INSPECTOR *inspector) {
 
 /* ------------------------------------------------------------- instance */
 DLLEXPORT RT64_INSTANCE *RT64_CreateInstance(RT64_SCENE *scene) {
-    (void)scene;
-    return nullptr;
+    RT64::SceneVK *s = (RT64::SceneVK *)scene;
+    if (s == nullptr) {
+        g_lastError = "RT64_CreateInstance called with a null scene";
+        return nullptr;
+    }
+    return (RT64_INSTANCE *)new RT64::InstanceVK(s);
 }
 DLLEXPORT void RT64_SetInstanceDescription(RT64_INSTANCE *instance,
                                            RT64_INSTANCE_DESC desc) {
-    (void)instance; (void)desc;
+    RT64::InstanceVK *i = (RT64::InstanceVK *)instance;
+    if (i == nullptr) {
+        g_lastError = "RT64_SetInstanceDescription called with a null instance";
+        return;
+    }
+    i->setDescription(desc);
 }
-DLLEXPORT void RT64_DestroyInstance(RT64_INSTANCE *instance) { (void)instance; }
+DLLEXPORT void RT64_DestroyInstance(RT64_INSTANCE *instance) {
+    delete (RT64::InstanceVK *)instance;
+}
 
 /* ----------------------------------------------------------------- mesh */
 DLLEXPORT RT64_MESH *RT64_CreateMesh(RT64_DEVICE *device, int flags) {
@@ -156,18 +169,37 @@ DLLEXPORT void RT64_DestroyMesh(RT64_MESH *mesh) {
 
 /* ---------------------------------------------------------------- scene */
 DLLEXPORT RT64_SCENE *RT64_CreateScene(RT64_DEVICE *device) {
-    (void)device;
-    return nullptr;
+    DeviceContext *ctx = (DeviceContext *)device;
+    if (ctx == nullptr) {
+        g_lastError = "RT64_CreateScene called with a null device";
+        return nullptr;
+    }
+    return (RT64_SCENE *)new RT64::SceneVK(&ctx->device, &ctx->builder);
 }
 DLLEXPORT void RT64_SetSceneDescription(RT64_SCENE *scene,
                                         RT64_SCENE_DESC sceneDesc) {
-    (void)scene; (void)sceneDesc;
+    RT64::SceneVK *s = (RT64::SceneVK *)scene;
+    if (s == nullptr) {
+        g_lastError = "RT64_SetSceneDescription called with a null scene";
+        return;
+    }
+    s->setDescription(sceneDesc);
 }
 DLLEXPORT void RT64_SetSceneLights(RT64_SCENE *scene, RT64_LIGHT *lightArray,
                                    int lightCount) {
-    (void)scene; (void)lightArray; (void)lightCount;
+    RT64::SceneVK *s = (RT64::SceneVK *)scene;
+    if (s == nullptr) {
+        g_lastError = "RT64_SetSceneLights called with a null scene";
+        return;
+    }
+    std::string error;
+    if (!s->setLights(lightArray, lightCount, error)) {
+        g_lastError = "RT64_SetSceneLights failed: " + error;
+    }
 }
-DLLEXPORT void RT64_DestroyScene(RT64_SCENE *scene) { (void)scene; }
+DLLEXPORT void RT64_DestroyScene(RT64_SCENE *scene) {
+    delete (RT64::SceneVK *)scene;
+}
 
 /* --------------------------------------------------------------- shader */
 DLLEXPORT RT64_SHADER *RT64_CreateShader(RT64_DEVICE *device,
@@ -184,10 +216,41 @@ DLLEXPORT void RT64_DestroyShader(RT64_SHADER *shader) { (void)shader; }
 /* -------------------------------------------------------------- texture */
 DLLEXPORT RT64_TEXTURE *RT64_CreateTexture(RT64_DEVICE *device,
                                            RT64_TEXTURE_DESC desc) {
-    (void)device; (void)desc;
-    return nullptr;
+    DeviceContext *ctx = (DeviceContext *)device;
+    if (ctx == nullptr) {
+        g_lastError = "RT64_CreateTexture called with a null device";
+        return nullptr;
+    }
+
+    RT64::TextureVK *texture = new RT64::TextureVK(&ctx->device);
+    std::string error;
+    bool ok = false;
+    switch (desc.format) {
+        case RT64_TEXTURE_FORMAT_RGBA8:
+            ok = texture->setRGBA8(desc.bytes, desc.byteCount, desc.width,
+                                   desc.height, desc.rowPitch, true, error);
+            break;
+        case RT64_TEXTURE_FORMAT_DDS:
+            /* Render96 ships .dds assets, so this needs a real BC-format
+               parser rather than a guess. Not yet implemented. */
+            error = "RT64_TEXTURE_FORMAT_DDS is not implemented in the Vulkan "
+                    "port yet";
+            break;
+        default:
+            error = "unknown texture format " + std::to_string(desc.format);
+            break;
+    }
+
+    if (!ok) {
+        g_lastError = "RT64_CreateTexture failed: " + error;
+        delete texture;
+        return nullptr;
+    }
+    return (RT64_TEXTURE *)texture;
 }
-DLLEXPORT void RT64_DestroyTexture(RT64_TEXTURE *texture) { (void)texture; }
+DLLEXPORT void RT64_DestroyTexture(RT64_TEXTURE *texture) {
+    delete (RT64::TextureVK *)texture;
+}
 
 /* ----------------------------------------------------------------- view */
 DLLEXPORT RT64_VIEW *RT64_CreateView(RT64_SCENE *scene) {

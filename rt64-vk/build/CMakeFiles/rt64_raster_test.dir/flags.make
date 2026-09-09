@@ -4,7 +4,7 @@
 # compile CXX with /usr/bin/c++
 CXX_DEFINES = 
 
-CXX_INCLUDES = -I/var/home/gamer/Projects/Render96ex_vkrt/rt64-vk/../include -I/var/home/gamer/Projects/Render96ex_vkrt/rt64-vk/src/vulkan -isystem /var/home/gamer/Projects/Render96ex_vkrt/rt64-vk/contrib/vma -isystem /usr/include/SDL2
+CXX_INCLUDES = -I/var/home/gamer/Projects/Render96ex_vkrt/rt64-vk/../include -I/var/home/gamer/Projects/Render96ex_vkrt/rt64-vk/src/vulkan -I/var/home/gamer/Projects/Render96ex_vkrt/rt64-vk/build/generated -isystem /var/home/gamer/Projects/Render96ex_vkrt/rt64-vk/contrib/vma -isystem /usr/include/SDL2
 
 CXX_FLAGS = -O3 -DNDEBUG -std=gnu++17 -fPIE -D_GNU_SOURCE=1 -D_REENTRANT
 

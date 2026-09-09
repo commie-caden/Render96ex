@@ -1,6 +1,8 @@
 # Hashes of file build rules.
+b98068d96c2107140a361bc2e35f16ab CMakeFiles/rt64_bindings
 b98068d96c2107140a361bc2e35f16ab CMakeFiles/rt64_shaders
 b98068d96c2107140a361bc2e35f16ab CMakeFiles/rt64_test_shaders
+9a544e780cca2c753f3923606d080040 generated/rt64_shader_bindings.h
 4ea2a073ccf21d8f662afe6a49167510 shaders/ComposePS.spv
 ba432e9ce34af58b4aa8660cdf59785a shaders/DebugPS.spv
 483ab3bc26e7855ac6b6b23dc2febe3b shaders/DirectRayGen.spv
@@ -17,3 +19,4 @@ b604a0712ff8fc81db43695f72566dd3 shaders/PostProcessPS.spv
 ed50ea4e3e3c28b303020f1822d27991 shaders/ReflectionRayGen.spv
 58eec180fb95a00fd096f7667ae585c0 shaders/RefractionRayGen.spv
 96c44c5ce0fb2805f444d0de426d8e71 shaders/TestRayGen.spv
+a49a3c079e9baa8c1208fe74d19fc60e test_shaders/TestRayGen.spv

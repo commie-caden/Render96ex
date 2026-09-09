@@ -7,6 +7,9 @@ librt64.so: \
   CMakeFiles/rt64.dir/src/vulkan/rt64_shaders_vk.cpp.o \
   CMakeFiles/rt64.dir/src/vulkan/rt64_raytracing_vk.cpp.o \
   CMakeFiles/rt64.dir/src/vulkan/rt64_mesh_vk.cpp.o \
+  CMakeFiles/rt64.dir/src/vulkan/rt64_descriptor_layout_vk.cpp.o \
+  CMakeFiles/rt64.dir/src/vulkan/rt64_texture_vk.cpp.o \
+  CMakeFiles/rt64.dir/src/vulkan/rt64_scene_vk.cpp.o \
   CMakeFiles/rt64.dir/src/vulkan/rt64_vma_impl.cpp.o \
   /usr/lib64/libvulkan.so \
   /usr/lib/gcc/x86_64-redhat-linux/16/../../../../lib64/libdl.a \
@@ -58,6 +61,12 @@ CMakeFiles/rt64.dir/src/vulkan/rt64_shaders_vk.cpp.o:
 CMakeFiles/rt64.dir/src/vulkan/rt64_raytracing_vk.cpp.o:
 
 CMakeFiles/rt64.dir/src/vulkan/rt64_mesh_vk.cpp.o:
+
+CMakeFiles/rt64.dir/src/vulkan/rt64_descriptor_layout_vk.cpp.o:
+
+CMakeFiles/rt64.dir/src/vulkan/rt64_texture_vk.cpp.o:
+
+CMakeFiles/rt64.dir/src/vulkan/rt64_scene_vk.cpp.o:
 
 CMakeFiles/rt64.dir/src/vulkan/rt64_vma_impl.cpp.o:
 

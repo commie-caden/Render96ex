@@ -166,6 +166,19 @@ rt64_test_shaders/fast:
 .PHONY : rt64_test_shaders/fast
 
 #=============================================================================
+# Target rules for targets named rt64_bindings
+
+# Build rule for target.
+rt64_bindings: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 rt64_bindings
+.PHONY : rt64_bindings
+
+# fast build rule for target.
+rt64_bindings/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64_bindings.dir/build.make CMakeFiles/rt64_bindings.dir/build
+.PHONY : rt64_bindings/fast
+
+#=============================================================================
 # Target rules for targets named rt64_abi_test
 
 # Build rule for target.
@@ -231,6 +244,45 @@ rt64_raster_test/fast:
 .PHONY : rt64_raster_test/fast
 
 #=============================================================================
+# Target rules for targets named rt64_scene_test
+
+# Build rule for target.
+rt64_scene_test: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 rt64_scene_test
+.PHONY : rt64_scene_test
+
+# fast build rule for target.
+rt64_scene_test/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64_scene_test.dir/build.make CMakeFiles/rt64_scene_test.dir/build
+.PHONY : rt64_scene_test/fast
+
+#=============================================================================
+# Target rules for targets named rt64_texture_test
+
+# Build rule for target.
+rt64_texture_test: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 rt64_texture_test
+.PHONY : rt64_texture_test
+
+# fast build rule for target.
+rt64_texture_test/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64_texture_test.dir/build.make CMakeFiles/rt64_texture_test.dir/build
+.PHONY : rt64_texture_test/fast
+
+#=============================================================================
+# Target rules for targets named rt64_descriptor_test
+
+# Build rule for target.
+rt64_descriptor_test: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 rt64_descriptor_test
+.PHONY : rt64_descriptor_test
+
+# fast build rule for target.
+rt64_descriptor_test/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64_descriptor_test.dir/build.make CMakeFiles/rt64_descriptor_test.dir/build
+.PHONY : rt64_descriptor_test/fast
+
+#=============================================================================
 # Target rules for targets named rt64_mesh_test
 
 # Build rule for target.
@@ -255,6 +307,30 @@ rt64_raytrace_test: cmake_check_build_system
 rt64_raytrace_test/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64_raytrace_test.dir/build.make CMakeFiles/rt64_raytrace_test.dir/build
 .PHONY : rt64_raytrace_test/fast
+
+src/vulkan/rt64_descriptor_layout_vk.o: src/vulkan/rt64_descriptor_layout_vk.cpp.o
+.PHONY : src/vulkan/rt64_descriptor_layout_vk.o
+
+# target to build an object file
+src/vulkan/rt64_descriptor_layout_vk.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64.dir/build.make CMakeFiles/rt64.dir/src/vulkan/rt64_descriptor_layout_vk.cpp.o
+.PHONY : src/vulkan/rt64_descriptor_layout_vk.cpp.o
+
+src/vulkan/rt64_descriptor_layout_vk.i: src/vulkan/rt64_descriptor_layout_vk.cpp.i
+.PHONY : src/vulkan/rt64_descriptor_layout_vk.i
+
+# target to preprocess a source file
+src/vulkan/rt64_descriptor_layout_vk.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64.dir/build.make CMakeFiles/rt64.dir/src/vulkan/rt64_descriptor_layout_vk.cpp.i
+.PHONY : src/vulkan/rt64_descriptor_layout_vk.cpp.i
+
+src/vulkan/rt64_descriptor_layout_vk.s: src/vulkan/rt64_descriptor_layout_vk.cpp.s
+.PHONY : src/vulkan/rt64_descriptor_layout_vk.s
+
+# target to generate assembly for a file
+src/vulkan/rt64_descriptor_layout_vk.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64.dir/build.make CMakeFiles/rt64.dir/src/vulkan/rt64_descriptor_layout_vk.cpp.s
+.PHONY : src/vulkan/rt64_descriptor_layout_vk.cpp.s
 
 src/vulkan/rt64_device_vk.o: src/vulkan/rt64_device_vk.cpp.o
 .PHONY : src/vulkan/rt64_device_vk.o
@@ -328,6 +404,30 @@ src/vulkan/rt64_raytracing_vk.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64.dir/build.make CMakeFiles/rt64.dir/src/vulkan/rt64_raytracing_vk.cpp.s
 .PHONY : src/vulkan/rt64_raytracing_vk.cpp.s
 
+src/vulkan/rt64_scene_vk.o: src/vulkan/rt64_scene_vk.cpp.o
+.PHONY : src/vulkan/rt64_scene_vk.o
+
+# target to build an object file
+src/vulkan/rt64_scene_vk.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64.dir/build.make CMakeFiles/rt64.dir/src/vulkan/rt64_scene_vk.cpp.o
+.PHONY : src/vulkan/rt64_scene_vk.cpp.o
+
+src/vulkan/rt64_scene_vk.i: src/vulkan/rt64_scene_vk.cpp.i
+.PHONY : src/vulkan/rt64_scene_vk.i
+
+# target to preprocess a source file
+src/vulkan/rt64_scene_vk.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64.dir/build.make CMakeFiles/rt64.dir/src/vulkan/rt64_scene_vk.cpp.i
+.PHONY : src/vulkan/rt64_scene_vk.cpp.i
+
+src/vulkan/rt64_scene_vk.s: src/vulkan/rt64_scene_vk.cpp.s
+.PHONY : src/vulkan/rt64_scene_vk.s
+
+# target to generate assembly for a file
+src/vulkan/rt64_scene_vk.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64.dir/build.make CMakeFiles/rt64.dir/src/vulkan/rt64_scene_vk.cpp.s
+.PHONY : src/vulkan/rt64_scene_vk.cpp.s
+
 src/vulkan/rt64_shaders_vk.o: src/vulkan/rt64_shaders_vk.cpp.o
 .PHONY : src/vulkan/rt64_shaders_vk.o
 
@@ -400,6 +500,30 @@ src/vulkan/rt64_swapchain_vk.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64.dir/build.make CMakeFiles/rt64.dir/src/vulkan/rt64_swapchain_vk.cpp.s
 .PHONY : src/vulkan/rt64_swapchain_vk.cpp.s
 
+src/vulkan/rt64_texture_vk.o: src/vulkan/rt64_texture_vk.cpp.o
+.PHONY : src/vulkan/rt64_texture_vk.o
+
+# target to build an object file
+src/vulkan/rt64_texture_vk.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64.dir/build.make CMakeFiles/rt64.dir/src/vulkan/rt64_texture_vk.cpp.o
+.PHONY : src/vulkan/rt64_texture_vk.cpp.o
+
+src/vulkan/rt64_texture_vk.i: src/vulkan/rt64_texture_vk.cpp.i
+.PHONY : src/vulkan/rt64_texture_vk.i
+
+# target to preprocess a source file
+src/vulkan/rt64_texture_vk.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64.dir/build.make CMakeFiles/rt64.dir/src/vulkan/rt64_texture_vk.cpp.i
+.PHONY : src/vulkan/rt64_texture_vk.cpp.i
+
+src/vulkan/rt64_texture_vk.s: src/vulkan/rt64_texture_vk.cpp.s
+.PHONY : src/vulkan/rt64_texture_vk.s
+
+# target to generate assembly for a file
+src/vulkan/rt64_texture_vk.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64.dir/build.make CMakeFiles/rt64.dir/src/vulkan/rt64_texture_vk.cpp.s
+.PHONY : src/vulkan/rt64_texture_vk.cpp.s
+
 src/vulkan/rt64_vma_impl.o: src/vulkan/rt64_vma_impl.cpp.o
 .PHONY : src/vulkan/rt64_vma_impl.o
 
@@ -447,6 +571,30 @@ tests/abi_test.s: tests/abi_test.cpp.s
 tests/abi_test.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64_abi_test.dir/build.make CMakeFiles/rt64_abi_test.dir/tests/abi_test.cpp.s
 .PHONY : tests/abi_test.cpp.s
+
+tests/descriptor_test.o: tests/descriptor_test.cpp.o
+.PHONY : tests/descriptor_test.o
+
+# target to build an object file
+tests/descriptor_test.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64_descriptor_test.dir/build.make CMakeFiles/rt64_descriptor_test.dir/tests/descriptor_test.cpp.o
+.PHONY : tests/descriptor_test.cpp.o
+
+tests/descriptor_test.i: tests/descriptor_test.cpp.i
+.PHONY : tests/descriptor_test.i
+
+# target to preprocess a source file
+tests/descriptor_test.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64_descriptor_test.dir/build.make CMakeFiles/rt64_descriptor_test.dir/tests/descriptor_test.cpp.i
+.PHONY : tests/descriptor_test.cpp.i
+
+tests/descriptor_test.s: tests/descriptor_test.cpp.s
+.PHONY : tests/descriptor_test.s
+
+# target to generate assembly for a file
+tests/descriptor_test.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64_descriptor_test.dir/build.make CMakeFiles/rt64_descriptor_test.dir/tests/descriptor_test.cpp.s
+.PHONY : tests/descriptor_test.cpp.s
 
 tests/device_info.o: tests/device_info.cpp.o
 .PHONY : tests/device_info.o
@@ -544,6 +692,30 @@ tests/raytrace_test.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64_raytrace_test.dir/build.make CMakeFiles/rt64_raytrace_test.dir/tests/raytrace_test.cpp.s
 .PHONY : tests/raytrace_test.cpp.s
 
+tests/scene_test.o: tests/scene_test.cpp.o
+.PHONY : tests/scene_test.o
+
+# target to build an object file
+tests/scene_test.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64_scene_test.dir/build.make CMakeFiles/rt64_scene_test.dir/tests/scene_test.cpp.o
+.PHONY : tests/scene_test.cpp.o
+
+tests/scene_test.i: tests/scene_test.cpp.i
+.PHONY : tests/scene_test.i
+
+# target to preprocess a source file
+tests/scene_test.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64_scene_test.dir/build.make CMakeFiles/rt64_scene_test.dir/tests/scene_test.cpp.i
+.PHONY : tests/scene_test.cpp.i
+
+tests/scene_test.s: tests/scene_test.cpp.s
+.PHONY : tests/scene_test.s
+
+# target to generate assembly for a file
+tests/scene_test.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64_scene_test.dir/build.make CMakeFiles/rt64_scene_test.dir/tests/scene_test.cpp.s
+.PHONY : tests/scene_test.cpp.s
+
 tests/shader_test.o: tests/shader_test.cpp.o
 .PHONY : tests/shader_test.o
 
@@ -567,6 +739,30 @@ tests/shader_test.s: tests/shader_test.cpp.s
 tests/shader_test.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64_shader_test.dir/build.make CMakeFiles/rt64_shader_test.dir/tests/shader_test.cpp.s
 .PHONY : tests/shader_test.cpp.s
+
+tests/texture_test.o: tests/texture_test.cpp.o
+.PHONY : tests/texture_test.o
+
+# target to build an object file
+tests/texture_test.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64_texture_test.dir/build.make CMakeFiles/rt64_texture_test.dir/tests/texture_test.cpp.o
+.PHONY : tests/texture_test.cpp.o
+
+tests/texture_test.i: tests/texture_test.cpp.i
+.PHONY : tests/texture_test.i
+
+# target to preprocess a source file
+tests/texture_test.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64_texture_test.dir/build.make CMakeFiles/rt64_texture_test.dir/tests/texture_test.cpp.i
+.PHONY : tests/texture_test.cpp.i
+
+tests/texture_test.s: tests/texture_test.cpp.s
+.PHONY : tests/texture_test.s
+
+# target to generate assembly for a file
+tests/texture_test.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64_texture_test.dir/build.make CMakeFiles/rt64_texture_test.dir/tests/texture_test.cpp.s
+.PHONY : tests/texture_test.cpp.s
 
 tests/window_test.o: tests/window_test.cpp.o
 .PHONY : tests/window_test.o
@@ -601,16 +797,23 @@ help:
 	@echo "... edit_cache"
 	@echo "... rebuild_cache"
 	@echo "... test"
+	@echo "... rt64_bindings"
 	@echo "... rt64_shaders"
 	@echo "... rt64_test_shaders"
 	@echo "... rt64"
 	@echo "... rt64_abi_test"
+	@echo "... rt64_descriptor_test"
 	@echo "... rt64_device_info"
 	@echo "... rt64_mesh_test"
 	@echo "... rt64_raster_test"
 	@echo "... rt64_raytrace_test"
+	@echo "... rt64_scene_test"
 	@echo "... rt64_shader_test"
+	@echo "... rt64_texture_test"
 	@echo "... rt64_window_test"
+	@echo "... src/vulkan/rt64_descriptor_layout_vk.o"
+	@echo "... src/vulkan/rt64_descriptor_layout_vk.i"
+	@echo "... src/vulkan/rt64_descriptor_layout_vk.s"
 	@echo "... src/vulkan/rt64_device_vk.o"
 	@echo "... src/vulkan/rt64_device_vk.i"
 	@echo "... src/vulkan/rt64_device_vk.s"
@@ -620,6 +823,9 @@ help:
 	@echo "... src/vulkan/rt64_raytracing_vk.o"
 	@echo "... src/vulkan/rt64_raytracing_vk.i"
 	@echo "... src/vulkan/rt64_raytracing_vk.s"
+	@echo "... src/vulkan/rt64_scene_vk.o"
+	@echo "... src/vulkan/rt64_scene_vk.i"
+	@echo "... src/vulkan/rt64_scene_vk.s"
 	@echo "... src/vulkan/rt64_shaders_vk.o"
 	@echo "... src/vulkan/rt64_shaders_vk.i"
 	@echo "... src/vulkan/rt64_shaders_vk.s"
@@ -629,12 +835,18 @@ help:
 	@echo "... src/vulkan/rt64_swapchain_vk.o"
 	@echo "... src/vulkan/rt64_swapchain_vk.i"
 	@echo "... src/vulkan/rt64_swapchain_vk.s"
+	@echo "... src/vulkan/rt64_texture_vk.o"
+	@echo "... src/vulkan/rt64_texture_vk.i"
+	@echo "... src/vulkan/rt64_texture_vk.s"
 	@echo "... src/vulkan/rt64_vma_impl.o"
 	@echo "... src/vulkan/rt64_vma_impl.i"
 	@echo "... src/vulkan/rt64_vma_impl.s"
 	@echo "... tests/abi_test.o"
 	@echo "... tests/abi_test.i"
 	@echo "... tests/abi_test.s"
+	@echo "... tests/descriptor_test.o"
+	@echo "... tests/descriptor_test.i"
+	@echo "... tests/descriptor_test.s"
 	@echo "... tests/device_info.o"
 	@echo "... tests/device_info.i"
 	@echo "... tests/device_info.s"
@@ -647,9 +859,15 @@ help:
 	@echo "... tests/raytrace_test.o"
 	@echo "... tests/raytrace_test.i"
 	@echo "... tests/raytrace_test.s"
+	@echo "... tests/scene_test.o"
+	@echo "... tests/scene_test.i"
+	@echo "... tests/scene_test.s"
 	@echo "... tests/shader_test.o"
 	@echo "... tests/shader_test.i"
 	@echo "... tests/shader_test.s"
+	@echo "... tests/texture_test.o"
+	@echo "... tests/texture_test.i"
+	@echo "... tests/texture_test.s"
 	@echo "... tests/window_test.o"
 	@echo "... tests/window_test.i"
 	@echo "... tests/window_test.s"

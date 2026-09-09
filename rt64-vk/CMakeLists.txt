@@ -36,6 +36,9 @@ if(RT64_BUILD_STUB)
         src/vulkan/rt64_shaders_vk.cpp
         src/vulkan/rt64_raytracing_vk.cpp
         src/vulkan/rt64_mesh_vk.cpp
+        src/vulkan/rt64_descriptor_layout_vk.cpp
+        src/vulkan/rt64_texture_vk.cpp
+        src/vulkan/rt64_scene_vk.cpp
         src/vulkan/rt64_vma_impl.cpp
     )
 else()
@@ -127,10 +130,26 @@ if(RT64_BUILD_SHADERS)
         ${CMAKE_CURRENT_SOURCE_DIR}/src/shaders
         ${CMAKE_BINARY_DIR}/shaders)
     add_dependencies(rt64 rt64_shaders)
-    # Test-only shaders land in the same output directory.
+    # Test shaders go elsewhere: they must not appear in the reflection of
+    # RT64's own shaders, or TestRayGen would join the RayTracing group.
     rt64_compile_shaders(rt64_test_shaders
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/shaders
-        ${CMAKE_BINARY_DIR}/shaders)
+        ${CMAKE_BINARY_DIR}/test_shaders)
+
+    # Descriptor set layouts are generated from the compiled SPIR-V so they
+    # cannot drift from what the shaders declare.
+    set(RT64_BINDINGS_HEADER ${CMAKE_BINARY_DIR}/generated/rt64_shader_bindings.h)
+    add_custom_command(
+        OUTPUT ${RT64_BINDINGS_HEADER}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/generated
+        COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/tools/reflect_bindings.py
+                ${CMAKE_BINARY_DIR}/shaders ${RT64_BINDINGS_HEADER}
+        DEPENDS rt64_shaders ${CMAKE_CURRENT_SOURCE_DIR}/tools/reflect_bindings.py
+        COMMENT "Reflecting descriptor bindings from SPIR-V"
+        VERBATIM)
+    add_custom_target(rt64_bindings DEPENDS ${RT64_BINDINGS_HEADER})
+    add_dependencies(rt64 rt64_bindings)
+    target_include_directories(rt64 PUBLIC ${CMAKE_BINARY_DIR}/generated)
     message(STATUS "RT64 shaders: dxc at ${RT64_DXC_EXECUTABLE}")
 endif()
 
@@ -184,6 +203,35 @@ target_link_libraries(rt64_raster_test PRIVATE rt64 Vulkan::Vulkan PkgConfig::SD
 if(RT64_BUILD_SHADERS)
     add_dependencies(rt64_raster_test rt64_shaders)
 endif()
+
+# Scenes, instances and TLAS building through the C ABI. Headless.
+add_executable(rt64_scene_test tests/scene_test.cpp)
+target_include_directories(rt64_scene_test PRIVATE
+    ${RT64_PUBLIC_INCLUDE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/vulkan)
+target_include_directories(rt64_scene_test SYSTEM PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/contrib/vma)
+target_link_libraries(rt64_scene_test PRIVATE rt64 Vulkan::Vulkan PkgConfig::SDL2)
+
+# Exercises RT64_CreateTexture through the C ABI. Headless.
+add_executable(rt64_texture_test tests/texture_test.cpp)
+target_include_directories(rt64_texture_test PRIVATE
+    ${RT64_PUBLIC_INCLUDE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/vulkan)
+target_include_directories(rt64_texture_test SYSTEM PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/contrib/vma)
+target_link_libraries(rt64_texture_test PRIVATE rt64 Vulkan::Vulkan PkgConfig::SDL2)
+
+# Creates every pass's descriptor set layout on the device. Headless.
+add_executable(rt64_descriptor_test tests/descriptor_test.cpp)
+target_include_directories(rt64_descriptor_test PRIVATE
+    ${RT64_PUBLIC_INCLUDE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/vulkan
+    ${CMAKE_BINARY_DIR}/generated)
+target_include_directories(rt64_descriptor_test SYSTEM PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/contrib/vma)
+target_link_libraries(rt64_descriptor_test PRIVATE rt64 Vulkan::Vulkan PkgConfig::SDL2)
+add_dependencies(rt64_descriptor_test rt64_bindings)
 
 # Exercises RT64_CreateMesh / RT64_SetMesh through the C ABI. Headless.
 add_executable(rt64_mesh_test tests/mesh_test.cpp)
