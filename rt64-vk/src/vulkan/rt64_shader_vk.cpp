@@ -149,18 +149,42 @@ unsigned int RT64::ShaderVK::uniqueSamplerRegisterIndex(Filter filter, Addressin
 }
 
 void incMeshBuffers(std::stringstream &ss) {
-	SS("ByteAddressBuffer vertexBuffer : register(t2);");
-	SS("ByteAddressBuffer indexBuffer : register(t3);");
+	/* VULKAN PORT: D3D12 bound vertexBuffer and indexBuffer through a LOCAL
+	   root signature, so each hit group's shader binding table record carried
+	   the addresses of that instance's mesh. Vulkan has no local root
+	   signature; its equivalent is the shader record buffer, which holds
+	   per-record data in the SBT itself. The two buffer device addresses go
+	   there and are read with vk::RawBufferLoad.
+
+	   This keeps RT64's design intact — mesh buffers stay per-instance and
+	   independent, so RT64_SetMesh can still reallocate a mesh freely. The
+	   alternatives (descriptor-indexed arrays, or one packed buffer with
+	   per-instance offsets) would have coupled unrelated meshes together. */
+	SS("struct RT64MeshAddresses { uint64_t vertexAddress; uint64_t indexAddress; };");
+	SS("[[vk::shader_record_ext]] ConstantBuffer<RT64MeshAddresses> gMeshAddresses;");
+	SS("");
+	/* Alignment 4: indices are tightly packed uint32 and vertex attributes sit
+	   at combiner-derived offsets, so nothing stronger can be assumed. */
+	SS("uint3 rt64LoadIndex3(uint byteOffset) {");
+	SS("    uint64_t a = gMeshAddresses.indexAddress + byteOffset;");
+	SS("    return uint3(vk::RawBufferLoad<uint>(a, 4), vk::RawBufferLoad<uint>(a + 4, 4), vk::RawBufferLoad<uint>(a + 8, 4));");
+	SS("}");
+	SS("float rt64LoadVertexFloat(uint byteOffset) {");
+	SS("    return vk::RawBufferLoad<float>(gMeshAddresses.vertexAddress + byteOffset, 4);");
+	SS("}");
+	SS("float2 rt64LoadVertexFloat2(uint o) { return float2(rt64LoadVertexFloat(o), rt64LoadVertexFloat(o + 4)); }");
+	SS("float3 rt64LoadVertexFloat3(uint o) { return float3(rt64LoadVertexFloat(o), rt64LoadVertexFloat(o + 4), rt64LoadVertexFloat(o + 8)); }");
+	SS("float4 rt64LoadVertexFloat4(uint o) { return float4(rt64LoadVertexFloat(o), rt64LoadVertexFloat(o + 4), rt64LoadVertexFloat(o + 8), rt64LoadVertexFloat(o + 12)); }");
 }
 
 void getVertexData(std::stringstream &ss, bool vertexPosition, bool vertexNormal, bool vertexUV, int inputCount, bool useAlpha, bool vertexBinormalAndTangent) {
 	VertexLayout vl(vertexPosition, vertexNormal, vertexUV, inputCount, useAlpha);
 
-	SS("uint3 index3 = indexBuffer.Load3((triangleIndex * 3) * 4);");
+	SS("uint3 index3 = rt64LoadIndex3((triangleIndex * 3) * 4);");
 
 	if (vertexPosition) {
 		for (int i = 0; i < 3; i++) {
-			SS("float3 pos" + std::to_string(i) + " = asfloat(vertexBuffer.Load3(index3[" + std::to_string(i) + "] * " + std::to_string(vl.vertexSize) + " + " + std::to_string(vl.positionOffset) + "));");
+			SS("float3 pos" + std::to_string(i) + " = rt64LoadVertexFloat3(index3[" + std::to_string(i) + "] * " + std::to_string(vl.vertexSize) + " + " + std::to_string(vl.positionOffset) + ");");
 			SS("float3 posW" + std::to_string(i) + " = mul(instanceTransforms[instanceId].objectToWorld, float4(pos" + std::to_string(i) + ", 1.0f)).xyz; ");
 		}
 
@@ -169,7 +193,7 @@ void getVertexData(std::stringstream &ss, bool vertexPosition, bool vertexNormal
 
 	if (vertexNormal) {
 		for (int i = 0; i < 3; i++) {
-			SS("float3 norm" + std::to_string(i) + " = asfloat(vertexBuffer.Load3(index3[" + std::to_string(i) + "] * " + std::to_string(vl.vertexSize) + " + " + std::to_string(vl.normalOffset) + "));");
+			SS("float3 norm" + std::to_string(i) + " = rt64LoadVertexFloat3(index3[" + std::to_string(i) + "] * " + std::to_string(vl.vertexSize) + " + " + std::to_string(vl.normalOffset) + ");");
 		}
 
 		SS("float3 vertexNormal = norm0 * barycentrics[0] + norm1 * barycentrics[1] + norm2 * barycentrics[2];");
@@ -182,7 +206,7 @@ void getVertexData(std::stringstream &ss, bool vertexPosition, bool vertexNormal
 
 	if (vertexUV) {
 		for (int i = 0; i < 3; i++) {
-			SS("float2 uv" + std::to_string(i) + " = asfloat(vertexBuffer.Load2(index3[" + std::to_string(i) + "] * " + std::to_string(vl.vertexSize) + " + " + std::to_string(vl.uvOffset) + "));");
+			SS("float2 uv" + std::to_string(i) + " = rt64LoadVertexFloat2(index3[" + std::to_string(i) + "] * " + std::to_string(vl.vertexSize) + " + " + std::to_string(vl.uvOffset) + ");");
 		}
 
 		SS("float2 vertexUV = uv0 * barycentrics[0] + uv1 * barycentrics[1] + uv2 * barycentrics[2];");
@@ -192,7 +216,7 @@ void getVertexData(std::stringstream &ss, bool vertexPosition, bool vertexNormal
 		std::string floatNum = useAlpha ? "4" : "3";
 		std::string index = std::to_string(i + 1);
 		for (int j = 0; j < 3; j++) {
-			SS("float" + floatNum + " input" + index + std::to_string(j) + " = asfloat(vertexBuffer.Load" + floatNum + "(index3[" + std::to_string(j) + "] * " + std::to_string(vl.vertexSize) + " + " + std::to_string(vl.inputOffset[i]) + "));");
+			SS("float" + floatNum + " input" + index + std::to_string(j) + " = rt64LoadVertexFloat" + floatNum + "(index3[" + std::to_string(j) + "] * " + std::to_string(vl.vertexSize) + " + " + std::to_string(vl.inputOffset[i]) + ");");
 		}
 
 		SS("float4 input" + index + " = " + (useAlpha ? "" : "float4(") + "input" + index + "0 * barycentrics[0] + input" + index + "1 * barycentrics[1] + input" + index + "2 * barycentrics[2]" + (useAlpha ? "" : ", 1.0f)") + ";");

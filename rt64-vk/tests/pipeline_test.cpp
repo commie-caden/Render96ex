@@ -133,8 +133,25 @@ int main(int argc, char **argv) {
     }
     expect(pipeline.getMaterialCount() == 3, "three materials added");
 
-    const bool built = pipeline.build(&device, builder.functions(), rt->layout,
-                                      error);
+    bool built = pipeline.build(&device, builder.functions(), rt->layout, error);
+    if (built) {
+        /* Two instances sharing material 0, plus one on material 2, to show
+           records are per instance while groups are per material. */
+        std::vector<RT64::HitRecord> records;
+        for (uint32_t instance = 0; instance < 3; instance++) {
+            const uint32_t material = (instance == 2) ? 2u : 0u;
+            RT64::HitRecord surface;
+            surface.groupIndex = pipeline.getMaterialGroupIndex(material);
+            surface.vertexAddress = 0x1000 + instance * 0x100;
+            surface.indexAddress = 0x2000 + instance * 0x100;
+            RT64::HitRecord shadow = surface;
+            shadow.groupIndex = surface.groupIndex + 1;
+            records.push_back(surface);
+            records.push_back(shadow);
+        }
+        built = pipeline.buildShaderBindingTable(&device, builder.functions(),
+                                                 records, error);
+    }
     if (!built) {
         std::printf("   \033[31mFAIL\033[0m pipeline build: %s\n", error.c_str());
         failures++;
@@ -157,7 +174,12 @@ int main(int argc, char **argv) {
         expect(sbt.missRegion().size == 2 * sbt.missRegion().stride,
                "miss region holds both miss shaders");
         expect(sbt.hitRegion().size == 6 * sbt.hitRegion().stride,
-               "hit region holds two groups per material");
+               "hit region holds two records per instance");
+        expect(sbt.hitRegion().stride > sbt.raygenRegion().stride,
+               "hit records are wider, carrying the mesh addresses");
+        std::printf("        raygen stride %llu, hit stride %llu\n",
+                    (unsigned long long)sbt.raygenRegion().stride,
+                    (unsigned long long)sbt.hitRegion().stride);
     }
 
     const uint32_t errs = device.getValidationErrorCount();

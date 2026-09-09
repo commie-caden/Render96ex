@@ -313,7 +313,11 @@ int main(int argc, char **argv) {
     std::printf("  pipeline:  raygen + miss + hit group\n");
 
     RT64::ShaderBindingTable sbt;
-    if (!sbt.build(&device, fn, pipeline, 1, 1, 1, error)) {
+    /* One hit record naming group 2, the triangle hit group. This test uses no
+       shader record data, so the addresses stay zero. */
+    std::vector<RT64::HitRecord> hitRecords(1);
+    hitRecords[0].groupIndex = 2;
+    if (!sbt.build(&device, fn, pipeline, 1, 1, 3, hitRecords, error)) {
         std::fprintf(stderr, "  SBT build failed: %s\n", error.c_str());
         return 1;
     }

@@ -393,7 +393,8 @@ bool AccelerationStructureBuilder::buildTopLevel(
 
 bool ShaderBindingTable::build(DeviceVK *device, const RayTracingFunctions &fn,
                                VkPipeline pipeline, uint32_t raygenCount,
-                               uint32_t missCount, uint32_t hitCount,
+                               uint32_t missCount, uint32_t groupCount,
+                               const std::vector<HitRecord> &hitRecords,
                                std::string &error) {
     const VkPhysicalDeviceRayTracingPipelinePropertiesKHR &props =
         device->getRayTracingProperties();
@@ -401,8 +402,14 @@ bool ShaderBindingTable::build(DeviceVK *device, const RayTracingFunctions &fn,
     handleAlignment = props.shaderGroupHandleAlignment;
     baseAlignment = props.shaderGroupBaseAlignment;
 
-    const uint32_t groupCount = raygenCount + missCount + hitCount;
     const VkDeviceSize handleStride = alignUp(handleSize, handleAlignment);
+    /* Hit records carry two device addresses after the handle, so their stride
+       is larger than the raygen and miss strides. Each region declares its own
+       stride, so they need not match. */
+    struct RecordData { uint64_t vertexAddress; uint64_t indexAddress; };
+    const VkDeviceSize hitStride =
+        alignUp(handleSize + sizeof(RecordData), handleAlignment);
+    const uint32_t hitCount = (uint32_t)hitRecords.size();
 
     std::vector<uint8_t> handles(groupCount * handleSize);
     VkResult res = fn.getShaderGroupHandles(device->getDevice(), pipeline, 0,
@@ -419,7 +426,7 @@ bool ShaderBindingTable::build(DeviceVK *device, const RayTracingFunctions &fn,
        spec requires its size to equal its stride. */
     const VkDeviceSize raygenSize = alignUp(raygenCount * handleStride, baseAlignment);
     const VkDeviceSize missSize   = alignUp(missCount   * handleStride, baseAlignment);
-    const VkDeviceSize hitSize    = alignUp(hitCount    * handleStride, baseAlignment);
+    const VkDeviceSize hitSize    = alignUp(hitCount    * hitStride, baseAlignment);
     const VkDeviceSize total = raygenSize + missSize + hitSize;
 
     if (!createBuffer(device->getAllocator(), device->getDevice(), total,
@@ -443,10 +450,22 @@ bool ShaderBindingTable::build(DeviceVK *device, const RayTracingFunctions &fn,
         std::memcpy(missBase + i * handleStride, src, handleSize);
         src += handleSize;
     }
+    /* Hit records are indexed by instance and select a group by index, so the
+       handle is looked up rather than consumed in order. */
     uint8_t *hitBase = dst + raygenSize + missSize;
     for (uint32_t i = 0; i < hitCount; i++) {
-        std::memcpy(hitBase + i * handleStride, src, handleSize);
-        src += handleSize;
+        const HitRecord &record = hitRecords[i];
+        if (record.groupIndex >= groupCount) {
+            error = "hit record " + std::to_string(i) + " names group " +
+                    std::to_string(record.groupIndex) + " but the pipeline has "
+                    + std::to_string(groupCount);
+            return false;
+        }
+        uint8_t *slot = hitBase + i * hitStride;
+        std::memcpy(slot, handles.data() + record.groupIndex * handleSize,
+                    handleSize);
+        RecordData data = { record.vertexAddress, record.indexAddress };
+        std::memcpy(slot + handleStride, &data, sizeof(data));
     }
 
     this->raygenCount = raygenCount;
@@ -459,8 +478,8 @@ bool ShaderBindingTable::build(DeviceVK *device, const RayTracingFunctions &fn,
     miss.size = missCount * handleStride;
 
     hit.deviceAddress = buffer.address + raygenSize + missSize;
-    hit.stride = handleStride;
-    hit.size = hitCount * handleStride;
+    hit.stride = hitStride;
+    hit.size = hitCount * hitStride;
 
     callable = {};
     return true;

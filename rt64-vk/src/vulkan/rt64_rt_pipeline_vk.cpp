@@ -201,9 +201,22 @@ bool RayTracingPipeline::build(DeviceVK *device, const RayTracingFunctions &fn,
         return false;
     }
 
+    /* Hit groups follow the raygen and miss groups. */
+    firstHitGroup = (uint32_t)RayPass::Count + (uint32_t)missStages.size();
+    return true;
+}
+
+bool RayTracingPipeline::buildShaderBindingTable(
+    DeviceVK *device, const RayTracingFunctions &fn,
+    const std::vector<HitRecord> &hitRecords, std::string &error) {
+    if (pipeline == VK_NULL_HANDLE) {
+        error = "shader binding table requested before the pipeline was built";
+        return false;
+    }
+    sbt.destroy(device->getAllocator());
     return sbt.build(device, fn, pipeline, (uint32_t)RayPass::Count,
-                     (uint32_t)missStages.size(), (uint32_t)hitGroups.size(),
-                     error);
+                     (uint32_t)missStages.size(), (uint32_t)groups.size(),
+                     hitRecords, error);
 }
 
 void RayTracingPipeline::destroy(DeviceVK *device) {

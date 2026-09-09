@@ -231,6 +231,17 @@ if(RT64_BUILD_SHADERS)
     add_dependencies(rt64_raster_test rt64_shaders)
 endif()
 
+# The five ray passes, dispatched. Needs a GPU.
+add_executable(rt64_dispatch_test tests/dispatch_test.cpp)
+target_include_directories(rt64_dispatch_test PRIVATE
+    ${RT64_PUBLIC_INCLUDE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/vulkan
+    ${CMAKE_BINARY_DIR}/generated)
+target_include_directories(rt64_dispatch_test SYSTEM PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/contrib/vma)
+target_link_libraries(rt64_dispatch_test PRIVATE rt64 Vulkan::Vulkan PkgConfig::SDL2 ${CMAKE_DL_LIBS})
+add_dependencies(rt64_dispatch_test rt64_bindings)
+
 # The real ray tracing pipeline: raygen + miss + per-material hit groups.
 add_executable(rt64_pipeline_test tests/pipeline_test.cpp)
 target_include_directories(rt64_pipeline_test PRIVATE

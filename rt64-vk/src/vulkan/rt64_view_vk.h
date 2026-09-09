@@ -19,6 +19,7 @@ namespace RT64 {
 
 class DeviceVK;
 class SceneVK;
+class RayTracingPipeline;
 
 /* Matches MAX_HIT_QUERIES in GlobalHitBuffers.hlsli, plus the extra slot the
    original allocated (MaxQueries = 16 + 1 in rt64_view.cpp). */
@@ -62,6 +63,15 @@ public:
 
     /* Total bytes across every target, for reporting. */
     uint64_t totalBytes() const;
+
+    /* Puts every storage image into GENERAL, which is the layout ray tracing
+       shaders read and write them in. Only needed after a resize. */
+    void transitionTargets(VkCommandBuffer cmd);
+
+    /* Records the five ray passes. Each reads what the previous wrote, so a
+       barrier separates them. */
+    void dispatchRayPasses(VkCommandBuffer cmd, const RayTracingPipeline &pipeline,
+                           const RayTracingFunctions &fn);
 
 private:
     bool createStorageImage(RenderTarget &target, std::string &error);

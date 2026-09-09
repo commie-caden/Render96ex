@@ -1,6 +1,7 @@
 #include "rt64_view_vk.h"
 #include "rt64_device_vk.h"
 #include "rt64_global_params.h"
+#include "rt64_rt_pipeline_vk.h"
 #include "rt64_scene_vk.h"
 #include "rt64_shader_bindings.h"
 #include "rt64_descriptor_layout_vk.h"
@@ -217,6 +218,77 @@ bool ViewVK::createPlaceholders(std::string &error) {
         return false;
     }
 
+    /* The descriptor is written as SHADER_READ_ONLY_OPTIMAL, so the image has
+       to actually be in that layout before anything samples it — a descriptor
+       promises a layout, it does not establish one. Doing this at creation
+       rather than leaving it to a per-frame transition means the promise holds
+       no matter what the caller records.
+
+       It is cleared as well as transitioned: sampling an image whose contents
+       were never written gives undefined results, and opaque black is a
+       defined stand-in until real background and blue noise textures exist. */
+    {
+        VkCommandPoolCreateInfo cpInfo = {};
+        cpInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+        cpInfo.queueFamilyIndex = device->getGraphicsFamily();
+        VkCommandPool tempPool = VK_NULL_HANDLE;
+        if (vkCreateCommandPool(vk, &cpInfo, nullptr, &tempPool) != VK_SUCCESS) {
+            error = "placeholder transition: vkCreateCommandPool failed";
+            return false;
+        }
+        VkCommandBufferAllocateInfo cbInfo = {};
+        cbInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        cbInfo.commandPool = tempPool;
+        cbInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        cbInfo.commandBufferCount = 1;
+        VkCommandBuffer cmd = VK_NULL_HANDLE;
+        vkAllocateCommandBuffers(vk, &cbInfo, &cmd);
+
+        VkCommandBufferBeginInfo begin = {};
+        begin.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+        vkBeginCommandBuffer(cmd, &begin);
+
+        VkImageMemoryBarrier b = {};
+        b.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        b.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        b.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        b.image = placeholderImage;
+        b.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+        b.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        b.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        b.srcAccessMask = 0;
+        b.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                             VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr,
+                             0, nullptr, 1, &b);
+
+        VkClearColorValue black = {};
+        black.float32[3] = 1.0f;
+        VkImageSubresourceRange range = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+        vkCmdClearColorImage(cmd, placeholderImage,
+                             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &black,
+                             1, &range);
+
+        b.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        b.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        b.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        b.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                             VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR |
+                             VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                             0, 0, nullptr, 0, nullptr, 1, &b);
+        vkEndCommandBuffer(cmd);
+
+        VkSubmitInfo submit = {};
+        submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        submit.commandBufferCount = 1;
+        submit.pCommandBuffers = &cmd;
+        vkQueueSubmit(device->getGraphicsQueue(), 1, &submit, VK_NULL_HANDLE);
+        vkQueueWaitIdle(device->getGraphicsQueue());
+        vkDestroyCommandPool(vk, tempPool, nullptr);
+    }
+
     if (!createBuffer(device->getAllocator(), vk, sizeof(GlobalParams),
                       VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, true, paramsBuffer,
                       error)) {
@@ -310,6 +382,73 @@ uint64_t ViewVK::totalBytes() const {
         }
     }
     return total;
+}
+
+void ViewVK::transitionTargets(VkCommandBuffer cmd) {
+    /* Storage images are read and written in GENERAL. D3D12 would have
+       promoted the state implicitly; Vulkan needs it spelled out, and a
+       freshly created image is in UNDEFINED. */
+    std::vector<VkImageMemoryBarrier> barriers;
+    barriers.reserve(targets.size());
+    for (const RenderTarget &t : targets) {
+        if (t.image == VK_NULL_HANDLE) {
+            continue;
+        }
+        VkImageMemoryBarrier b = {};
+        b.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        b.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        b.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+        b.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        b.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        b.image = t.image;
+        b.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+        b.srcAccessMask = 0;
+        b.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+        barriers.push_back(b);
+    }
+    if (barriers.empty()) {
+        return;
+    }
+    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                         VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, 0,
+                         0, nullptr, 0, nullptr,
+                         (uint32_t)barriers.size(), barriers.data());
+}
+
+void ViewVK::dispatchRayPasses(VkCommandBuffer cmd,
+                               const RayTracingPipeline &pipeline,
+                               const RayTracingFunctions &fn) {
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR,
+                      pipeline.getPipeline());
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR,
+                            pipeline.getLayout(), 0, 1, &descriptorSet, 0,
+                            nullptr);
+
+    const ShaderBindingTable &sbt = pipeline.getSBT();
+    const VkStridedDeviceAddressRegionKHR miss = sbt.missRegion();
+    const VkStridedDeviceAddressRegionKHR hit = sbt.hitRegion();
+    const VkStridedDeviceAddressRegionKHR callable = sbt.callableRegion();
+
+    /* Every pass reads the G-buffer the previous one wrote — primary lays down
+       shading data, direct and indirect light it, reflection and refraction
+       trace secondary rays against it. Without a barrier between dispatches
+       they would race. */
+    VkMemoryBarrier between = {};
+    between.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+    between.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+    between.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+
+    for (uint32_t pass = 0; pass < (uint32_t)RayPass::Count; pass++) {
+        const VkStridedDeviceAddressRegionKHR raygen = sbt.raygenRegion(pass);
+        fn.cmdTraceRays(cmd, &raygen, &miss, &hit, &callable, width, height, 1);
+
+        if (pass + 1 < (uint32_t)RayPass::Count) {
+            vkCmdPipelineBarrier(cmd,
+                                 VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,
+                                 VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,
+                                 0, 1, &between, 0, nullptr, 0, nullptr);
+        }
+    }
 }
 
 bool ViewVK::updateDescriptorSet(VkDescriptorSetLayout layout,

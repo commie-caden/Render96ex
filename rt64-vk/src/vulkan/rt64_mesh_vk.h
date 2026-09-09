@@ -29,6 +29,10 @@ public:
 
     bool raytraceEnabled() const;
     const AccelerationStructureVK &accelerationStructure() const { return blas; }
+    /* Device addresses for the shader record buffer: the hit group reads its
+       geometry through these rather than a bound descriptor. */
+    uint64_t getVertexAddress() const { return vertexBuffer.address; }
+    uint64_t getIndexAddress() const { return indexBuffer.address; }
     int getVertexCount() const { return vertexCount; }
     int getIndexCount() const { return indexCount; }
     /* True when the last setMesh refitted rather than rebuilt. */

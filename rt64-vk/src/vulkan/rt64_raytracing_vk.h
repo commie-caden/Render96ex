@@ -133,13 +133,26 @@ private:
 
 /* ------------------------------------------------- shader binding table */
 
+/* One hit record per instance per ray type, not per material.
+   D3D12 supplied vertexBuffer and indexBuffer through a local root signature,
+   so the record carried that instance's mesh addresses alongside the handle of
+   its material's hit group. Vulkan's shader record buffer works the same way,
+   which means records are indexed by instance — matching the
+   instanceShaderBindingTableRecordOffset of 2 * instanceIndex. */
+struct HitRecord {
+    uint32_t groupIndex = 0;        /* which material hit group to invoke */
+    uint64_t vertexAddress = 0;     /* this instance's mesh */
+    uint64_t indexAddress = 0;
+};
+
 class ShaderBindingTable {
 public:
-    /* groupCount must match the group count the pipeline was created with.
-       raygen/miss/hit counts must sum to groupCount, in that order. */
+    /* raygen and miss records are plain handles; hit records carry the mesh
+       addresses the shader record buffer exposes. */
     bool build(DeviceVK *device, const RayTracingFunctions &fn,
                VkPipeline pipeline, uint32_t raygenCount, uint32_t missCount,
-               uint32_t hitCount, std::string &error);
+               uint32_t groupCount, const std::vector<HitRecord> &hitRecords,
+               std::string &error);
     void destroy(VmaAllocator allocator);
 
     /* The spec requires the raygen region's size to equal its stride, so a

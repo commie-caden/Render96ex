@@ -56,6 +56,19 @@ public:
     bool build(DeviceVK *device, const RayTracingFunctions &fn,
                VkDescriptorSetLayout setLayout, std::string &error);
 
+    /* Separate from build() because hit records are per instance, not per
+       material: the pipeline outlives a frame, the record table does not. Call
+       again whenever instances or their meshes change. */
+    bool buildShaderBindingTable(DeviceVK *device, const RayTracingFunctions &fn,
+                                 const std::vector<HitRecord> &hitRecords,
+                                 std::string &error);
+
+    /* Group index of a material's surface hit group; +1 is its shadow group.
+       This is what a HitRecord names. */
+    uint32_t getMaterialGroupIndex(uint32_t materialIndex) const {
+        return firstHitGroup + materialIndex * 2;
+    }
+
     VkPipeline getPipeline() const { return pipeline; }
     VkPipelineLayout getLayout() const { return pipelineLayout; }
     const ShaderBindingTable &getSBT() const { return sbt; }
@@ -82,6 +95,7 @@ private:
     struct HitGroupRef { uint32_t closestHit; uint32_t anyHit; };
     std::vector<HitGroupRef> hitGroups;
     uint32_t materialCount = 0;
+    uint32_t firstHitGroup = 0;   /* raygen and miss groups come first */
 
     std::vector<VkPipelineShaderStageCreateInfo> stages;
     std::vector<VkRayTracingShaderGroupCreateInfoKHR> groups;

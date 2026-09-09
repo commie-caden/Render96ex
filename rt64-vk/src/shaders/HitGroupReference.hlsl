@@ -4,7 +4,7 @@
 // RT64 generates its hit groups per material at runtime (rt64_shader.cpp), so
 // the descriptor reflection that builds the RayTracing set layout never sees
 // them. Without this file the layout is wrong in two ways: it omits the
-// bindings only hit groups use (vertexBuffer, indexBuffer, instanceTransforms),
+// bindings only hit groups use (instanceTransforms, instanceMaterials, the
 // and its stageFlags carry only RAYGEN and MISS, so the driver rejects any
 // pipeline whose closesthit or anyhit touches a shared binding.
 //
@@ -17,9 +17,13 @@
 // validation layers reject a mismatched layout at pipeline creation.
 //
 
-// Emitted directly by generateSurfaceHitGroup, not by any .hlsli.
-ByteAddressBuffer vertexBuffer : register(t2);
-ByteAddressBuffer indexBuffer : register(t3);
+// Mesh geometry reaches the hit groups through the shader record buffer, not a
+// descriptor — see the VULKAN PORT note in generateSurfaceHitGroup. A shader
+// record is not part of the descriptor set, so this contributes no binding; it
+// is declared here only so the reference compiles the same way the generated
+// hit groups do.
+struct RT64MeshAddresses { uint64_t vertexAddress; uint64_t indexAddress; };
+[[vk::shader_record_ext]] ConstantBuffer<RT64MeshAddresses> gMeshAddresses;
 
 #include "Materials.hlsli"
 #include "Instances.hlsli"
@@ -61,8 +65,11 @@ void HitGroupReferenceClosestHit(inout HitGroupRefPayload payload,
                                  in HitGroupRefAttributes attrib) {
     // Touch every shared resource so nothing is optimised away before
     // reflection sees it.
-    uint3 tri = indexBuffer.Load3(0);
-    float3 pos = asfloat(vertexBuffer.Load3(tri.x * 44));
+    uint index = vk::RawBufferLoad<uint>(gMeshAddresses.indexAddress, 4);
+    float3 pos = float3(
+        vk::RawBufferLoad<float>(gMeshAddresses.vertexAddress + index * 44, 4),
+        vk::RawBufferLoad<float>(gMeshAddresses.vertexAddress + index * 44 + 4, 4),
+        vk::RawBufferLoad<float>(gMeshAddresses.vertexAddress + index * 44 + 8, 4));
     float4 xf = mul(instanceTransforms[0].objectToWorld, float4(pos, 1.0f));
     /* Reference gTextures and every sampler so reflection records them with
        the closesthit and anyhit stages the generated hit groups actually use. */
