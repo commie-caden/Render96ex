@@ -68,7 +68,15 @@ struct AccelerationStructureVK {
     VkAccelerationStructureKHR handle = VK_NULL_HANDLE;
     BufferVK storage;
     VkDeviceAddress address = 0;
+    /* Kept alive for updatable structures: a refit needs scratch too, and
+       reallocating it every frame would defeat the point of refitting. */
+    BufferVK scratch;
+    VkBuildAccelerationStructureFlagsKHR buildFlags = 0;
+    bool built = false;
 
+    bool updatable() const {
+        return (buildFlags & VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR) != 0;
+    }
     void destroy(const RayTracingFunctions &fn, VkDevice device,
                  VmaAllocator allocator);
 };
@@ -88,9 +96,23 @@ public:
     void shutdown();
 
     /* Builds one BLAS from a set of triangle geometries. Submits and waits;
-       batching is a later concern. */
+       batching is a later concern.
+
+       If out is already built and was created with ALLOW_UPDATE, this refits
+       in place rather than rebuilding — which is the whole point of
+       RT64_MESH_RAYTRACE_UPDATABLE. A refit requires the topology to be
+       unchanged; only vertex positions may move. */
     bool buildBottomLevel(const std::vector<TriangleGeometry> &geometries,
+                          VkBuildAccelerationStructureFlagsKHR flags,
                           AccelerationStructureVK &out, std::string &error);
+
+    /* Convenience overload keeping the previous default flags. */
+    bool buildBottomLevel(const std::vector<TriangleGeometry> &geometries,
+                          AccelerationStructureVK &out, std::string &error) {
+        return buildBottomLevel(geometries,
+            VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR,
+            out, error);
+    }
 
     /* Builds a TLAS over already-built bottom level structures. */
     bool buildTopLevel(const std::vector<VkAccelerationStructureInstanceKHR> &instances,

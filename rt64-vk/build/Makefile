@@ -231,6 +231,19 @@ rt64_raster_test/fast:
 .PHONY : rt64_raster_test/fast
 
 #=============================================================================
+# Target rules for targets named rt64_mesh_test
+
+# Build rule for target.
+rt64_mesh_test: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 rt64_mesh_test
+.PHONY : rt64_mesh_test
+
+# fast build rule for target.
+rt64_mesh_test/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64_mesh_test.dir/build.make CMakeFiles/rt64_mesh_test.dir/build
+.PHONY : rt64_mesh_test/fast
+
+#=============================================================================
 # Target rules for targets named rt64_raytrace_test
 
 # Build rule for target.
@@ -266,6 +279,30 @@ src/vulkan/rt64_device_vk.s: src/vulkan/rt64_device_vk.cpp.s
 src/vulkan/rt64_device_vk.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64.dir/build.make CMakeFiles/rt64.dir/src/vulkan/rt64_device_vk.cpp.s
 .PHONY : src/vulkan/rt64_device_vk.cpp.s
+
+src/vulkan/rt64_mesh_vk.o: src/vulkan/rt64_mesh_vk.cpp.o
+.PHONY : src/vulkan/rt64_mesh_vk.o
+
+# target to build an object file
+src/vulkan/rt64_mesh_vk.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64.dir/build.make CMakeFiles/rt64.dir/src/vulkan/rt64_mesh_vk.cpp.o
+.PHONY : src/vulkan/rt64_mesh_vk.cpp.o
+
+src/vulkan/rt64_mesh_vk.i: src/vulkan/rt64_mesh_vk.cpp.i
+.PHONY : src/vulkan/rt64_mesh_vk.i
+
+# target to preprocess a source file
+src/vulkan/rt64_mesh_vk.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64.dir/build.make CMakeFiles/rt64.dir/src/vulkan/rt64_mesh_vk.cpp.i
+.PHONY : src/vulkan/rt64_mesh_vk.cpp.i
+
+src/vulkan/rt64_mesh_vk.s: src/vulkan/rt64_mesh_vk.cpp.s
+.PHONY : src/vulkan/rt64_mesh_vk.s
+
+# target to generate assembly for a file
+src/vulkan/rt64_mesh_vk.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64.dir/build.make CMakeFiles/rt64.dir/src/vulkan/rt64_mesh_vk.cpp.s
+.PHONY : src/vulkan/rt64_mesh_vk.cpp.s
 
 src/vulkan/rt64_raytracing_vk.o: src/vulkan/rt64_raytracing_vk.cpp.o
 .PHONY : src/vulkan/rt64_raytracing_vk.o
@@ -435,6 +472,30 @@ tests/device_info.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64_device_info.dir/build.make CMakeFiles/rt64_device_info.dir/tests/device_info.cpp.s
 .PHONY : tests/device_info.cpp.s
 
+tests/mesh_test.o: tests/mesh_test.cpp.o
+.PHONY : tests/mesh_test.o
+
+# target to build an object file
+tests/mesh_test.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64_mesh_test.dir/build.make CMakeFiles/rt64_mesh_test.dir/tests/mesh_test.cpp.o
+.PHONY : tests/mesh_test.cpp.o
+
+tests/mesh_test.i: tests/mesh_test.cpp.i
+.PHONY : tests/mesh_test.i
+
+# target to preprocess a source file
+tests/mesh_test.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64_mesh_test.dir/build.make CMakeFiles/rt64_mesh_test.dir/tests/mesh_test.cpp.i
+.PHONY : tests/mesh_test.cpp.i
+
+tests/mesh_test.s: tests/mesh_test.cpp.s
+.PHONY : tests/mesh_test.s
+
+# target to generate assembly for a file
+tests/mesh_test.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64_mesh_test.dir/build.make CMakeFiles/rt64_mesh_test.dir/tests/mesh_test.cpp.s
+.PHONY : tests/mesh_test.cpp.s
+
 tests/raster_test.o: tests/raster_test.cpp.o
 .PHONY : tests/raster_test.o
 
@@ -545,6 +606,7 @@ help:
 	@echo "... rt64"
 	@echo "... rt64_abi_test"
 	@echo "... rt64_device_info"
+	@echo "... rt64_mesh_test"
 	@echo "... rt64_raster_test"
 	@echo "... rt64_raytrace_test"
 	@echo "... rt64_shader_test"
@@ -552,6 +614,9 @@ help:
 	@echo "... src/vulkan/rt64_device_vk.o"
 	@echo "... src/vulkan/rt64_device_vk.i"
 	@echo "... src/vulkan/rt64_device_vk.s"
+	@echo "... src/vulkan/rt64_mesh_vk.o"
+	@echo "... src/vulkan/rt64_mesh_vk.i"
+	@echo "... src/vulkan/rt64_mesh_vk.s"
 	@echo "... src/vulkan/rt64_raytracing_vk.o"
 	@echo "... src/vulkan/rt64_raytracing_vk.i"
 	@echo "... src/vulkan/rt64_raytracing_vk.s"
@@ -573,6 +638,9 @@ help:
 	@echo "... tests/device_info.o"
 	@echo "... tests/device_info.i"
 	@echo "... tests/device_info.s"
+	@echo "... tests/mesh_test.o"
+	@echo "... tests/mesh_test.i"
+	@echo "... tests/mesh_test.s"
 	@echo "... tests/raster_test.o"
 	@echo "... tests/raster_test.i"
 	@echo "... tests/raster_test.s"

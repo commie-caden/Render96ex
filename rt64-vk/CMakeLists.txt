@@ -35,6 +35,7 @@ if(RT64_BUILD_STUB)
         src/vulkan/rt64_swapchain_vk.cpp
         src/vulkan/rt64_shaders_vk.cpp
         src/vulkan/rt64_raytracing_vk.cpp
+        src/vulkan/rt64_mesh_vk.cpp
         src/vulkan/rt64_vma_impl.cpp
     )
 else()
@@ -183,6 +184,15 @@ target_link_libraries(rt64_raster_test PRIVATE rt64 Vulkan::Vulkan PkgConfig::SD
 if(RT64_BUILD_SHADERS)
     add_dependencies(rt64_raster_test rt64_shaders)
 endif()
+
+# Exercises RT64_CreateMesh / RT64_SetMesh through the C ABI. Headless.
+add_executable(rt64_mesh_test tests/mesh_test.cpp)
+target_include_directories(rt64_mesh_test PRIVATE
+    ${RT64_PUBLIC_INCLUDE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/vulkan)
+target_include_directories(rt64_mesh_test SYSTEM PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/contrib/vma)
+target_link_libraries(rt64_mesh_test PRIVATE rt64 Vulkan::Vulkan PkgConfig::SDL2)
 
 # Phase 3 milestone: BLAS/TLAS, ray tracing pipeline, SBT, vkCmdTraceRaysKHR.
 add_executable(rt64_raytrace_test tests/raytrace_test.cpp)

@@ -85,6 +85,7 @@ void AccelerationStructureVK::destroy(const RayTracingFunctions &fn,
         handle = VK_NULL_HANDLE;
     }
     storage.destroy(allocator);
+    scratch.destroy(allocator);
 }
 
 bool AccelerationStructureBuilder::initialize(DeviceVK *dev, std::string &error) {
@@ -169,6 +170,7 @@ bool AccelerationStructureBuilder::submitBuild(
 
 bool AccelerationStructureBuilder::buildBottomLevel(
     const std::vector<TriangleGeometry> &geometries,
+    VkBuildAccelerationStructureFlagsKHR flags,
     AccelerationStructureVK &out, std::string &error) {
 
     if (geometries.empty()) {
@@ -205,8 +207,11 @@ bool AccelerationStructureBuilder::buildBottomLevel(
     VkAccelerationStructureBuildGeometryInfoKHR buildInfo = {};
     buildInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
     buildInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
-    buildInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
-    buildInfo.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
+    buildInfo.flags = flags;
+    /* Refit an existing updatable structure instead of rebuilding it. */
+    const bool refit = out.built && out.updatable();
+    buildInfo.mode = refit ? VK_BUILD_ACCELERATION_STRUCTURE_MODE_UPDATE_KHR
+                           : VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
     buildInfo.geometryCount = (uint32_t)geoms.size();
     buildInfo.pGeometries = geoms.data();
 
@@ -216,45 +221,63 @@ bool AccelerationStructureBuilder::buildBottomLevel(
                      VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &buildInfo,
                      primitiveCounts.data(), &sizes);
 
-    if (!createBuffer(device->getAllocator(), device->getDevice(),
-                      sizes.accelerationStructureSize,
-                      VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR |
-                      VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
-                      false, out.storage, error)) {
-        return false;
+    if (!refit) {
+        if (!createBuffer(device->getAllocator(), device->getDevice(),
+                          sizes.accelerationStructureSize,
+                          VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR |
+                          VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+                          false, out.storage, error)) {
+            return false;
+        }
+
+        VkAccelerationStructureCreateInfoKHR createInfo = {};
+        createInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR;
+        createInfo.buffer = out.storage.buffer;
+        createInfo.size = sizes.accelerationStructureSize;
+        createInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
+        VkResult res = fn.createAccelerationStructure(device->getDevice(),
+                                                      &createInfo, nullptr,
+                                                      &out.handle);
+        if (res != VK_SUCCESS) {
+            error = "vkCreateAccelerationStructureKHR failed (" +
+                    std::to_string((int)res) + ")";
+            return false;
+        }
     }
 
-    VkAccelerationStructureCreateInfoKHR createInfo = {};
-    createInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR;
-    createInfo.buffer = out.storage.buffer;
-    createInfo.size = sizes.accelerationStructureSize;
-    createInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
-    VkResult res = fn.createAccelerationStructure(device->getDevice(),
-                                                  &createInfo, nullptr,
-                                                  &out.handle);
-    if (res != VK_SUCCESS) {
-        error = "vkCreateAccelerationStructureKHR failed (" +
-                std::to_string((int)res) + ")";
-        return false;
+    /* An update needs updateScratchSize, which may differ from (and is never
+       larger than) the initial build scratch. Keep the buffer for updatable
+       structures so a refit does no allocation. */
+    const VkDeviceSize scratchNeeded =
+        refit ? sizes.updateScratchSize : sizes.buildScratchSize;
+    if (out.scratch.buffer == VK_NULL_HANDLE) {
+        if (!createBuffer(device->getAllocator(), device->getDevice(),
+                          sizes.buildScratchSize + scratchAlignment,
+                          VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+                          VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+                          false, out.scratch, error)) {
+            return false;
+        }
     }
+    (void)scratchNeeded;
 
-    BufferVK scratch;
-    if (!createBuffer(device->getAllocator(), device->getDevice(),
-                      sizes.buildScratchSize + scratchAlignment,
-                      VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
-                      VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
-                      false, scratch, error)) {
-        return false;
-    }
-
+    buildInfo.srcAccelerationStructure =
+        refit ? out.handle : VK_NULL_HANDLE;
     buildInfo.dstAccelerationStructure = out.handle;
-    buildInfo.scratchData.deviceAddress = alignUp(scratch.address, scratchAlignment);
+    buildInfo.scratchData.deviceAddress =
+        alignUp(out.scratch.address, scratchAlignment);
 
     const VkAccelerationStructureBuildRangeInfoKHR *rangePtr = ranges.data();
     bool ok = submitBuild(buildInfo, rangePtr, error);
-    scratch.destroy(device->getAllocator());
     if (!ok) {
         return false;
+    }
+    out.buildFlags = flags;
+    out.built = true;
+
+    /* A non-updatable structure will never refit, so its scratch is dead. */
+    if (!out.updatable()) {
+        out.scratch.destroy(device->getAllocator());
     }
 
     VkAccelerationStructureDeviceAddressInfoKHR addressInfo = {};

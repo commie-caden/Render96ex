@@ -1,15 +1,10 @@
-librt64.so: \
+rt64_mesh_test: \
+  /usr/lib/gcc/x86_64-redhat-linux/16/../../../../lib64/crt1.o \
   /usr/lib/gcc/x86_64-redhat-linux/16/../../../../lib64/crti.o \
-  /usr/lib/gcc/x86_64-redhat-linux/16/crtbeginS.o \
-  CMakeFiles/rt64.dir/src/vulkan/rt64_stub.cpp.o \
-  CMakeFiles/rt64.dir/src/vulkan/rt64_device_vk.cpp.o \
-  CMakeFiles/rt64.dir/src/vulkan/rt64_swapchain_vk.cpp.o \
-  CMakeFiles/rt64.dir/src/vulkan/rt64_shaders_vk.cpp.o \
-  CMakeFiles/rt64.dir/src/vulkan/rt64_raytracing_vk.cpp.o \
-  CMakeFiles/rt64.dir/src/vulkan/rt64_mesh_vk.cpp.o \
-  CMakeFiles/rt64.dir/src/vulkan/rt64_vma_impl.cpp.o \
+  /usr/lib/gcc/x86_64-redhat-linux/16/crtbegin.o \
+  CMakeFiles/rt64_mesh_test.dir/tests/mesh_test.cpp.o \
+  librt64.so \
   /usr/lib64/libvulkan.so \
-  /usr/lib/gcc/x86_64-redhat-linux/16/../../../../lib64/libdl.a \
   /usr/lib64/libSDL2.so \
   /usr/lib/gcc/x86_64-redhat-linux/16/libstdc++.so \
   /usr/lib/gcc/x86_64-redhat-linux/16/../../../../lib64/libm.so \
@@ -21,6 +16,7 @@ librt64.so: \
   /usr/lib/gcc/x86_64-redhat-linux/16/libgcc_s.so \
   /usr/lib/gcc/x86_64-redhat-linux/16/libgcc_s.so \
   /lib64/libgcc_s.so.1 \
+  /usr/lib/gcc/x86_64-redhat-linux/16/libgcc.a \
   /usr/lib/gcc/x86_64-redhat-linux/16/libgcc.a \
   /usr/lib/gcc/x86_64-redhat-linux/16/libatomic_asneeded.so \
   /usr/lib/gcc/x86_64-redhat-linux/16/libatomic_asneeded.so \
@@ -40,30 +36,22 @@ librt64.so: \
   /usr/lib/gcc/x86_64-redhat-linux/16/libgcc_s.so \
   /lib64/libgcc_s.so.1 \
   /usr/lib/gcc/x86_64-redhat-linux/16/libgcc.a \
-  /usr/lib/gcc/x86_64-redhat-linux/16/crtendS.o \
-  /usr/lib/gcc/x86_64-redhat-linux/16/../../../../lib64/crtn.o
+  /usr/lib/gcc/x86_64-redhat-linux/16/libgcc.a \
+  /usr/lib/gcc/x86_64-redhat-linux/16/crtend.o \
+  /usr/lib/gcc/x86_64-redhat-linux/16/../../../../lib64/crtn.o \
+  /lib64/ld-linux-x86-64.so.2
+
+/usr/lib/gcc/x86_64-redhat-linux/16/../../../../lib64/crt1.o:
 
 /usr/lib/gcc/x86_64-redhat-linux/16/../../../../lib64/crti.o:
 
-/usr/lib/gcc/x86_64-redhat-linux/16/crtbeginS.o:
+/usr/lib/gcc/x86_64-redhat-linux/16/crtbegin.o:
 
-CMakeFiles/rt64.dir/src/vulkan/rt64_stub.cpp.o:
+CMakeFiles/rt64_mesh_test.dir/tests/mesh_test.cpp.o:
 
-CMakeFiles/rt64.dir/src/vulkan/rt64_device_vk.cpp.o:
-
-CMakeFiles/rt64.dir/src/vulkan/rt64_swapchain_vk.cpp.o:
-
-CMakeFiles/rt64.dir/src/vulkan/rt64_shaders_vk.cpp.o:
-
-CMakeFiles/rt64.dir/src/vulkan/rt64_raytracing_vk.cpp.o:
-
-CMakeFiles/rt64.dir/src/vulkan/rt64_mesh_vk.cpp.o:
-
-CMakeFiles/rt64.dir/src/vulkan/rt64_vma_impl.cpp.o:
+librt64.so:
 
 /usr/lib64/libvulkan.so:
-
-/usr/lib/gcc/x86_64-redhat-linux/16/../../../../lib64/libdl.a:
 
 /usr/lib64/libSDL2.so:
 
@@ -86,6 +74,8 @@ CMakeFiles/rt64.dir/src/vulkan/rt64_vma_impl.cpp.o:
 /usr/lib/gcc/x86_64-redhat-linux/16/libgcc_s.so:
 
 /lib64/libgcc_s.so.1:
+
+/usr/lib/gcc/x86_64-redhat-linux/16/libgcc.a:
 
 /usr/lib/gcc/x86_64-redhat-linux/16/libgcc.a:
 
@@ -125,6 +115,10 @@ CMakeFiles/rt64.dir/src/vulkan/rt64_vma_impl.cpp.o:
 
 /usr/lib/gcc/x86_64-redhat-linux/16/libgcc.a:
 
-/usr/lib/gcc/x86_64-redhat-linux/16/crtendS.o:
+/usr/lib/gcc/x86_64-redhat-linux/16/libgcc.a:
+
+/usr/lib/gcc/x86_64-redhat-linux/16/crtend.o:
 
 /usr/lib/gcc/x86_64-redhat-linux/16/../../../../lib64/crtn.o:
+
+/lib64/ld-linux-x86-64.so.2:

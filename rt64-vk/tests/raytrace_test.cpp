@@ -71,6 +71,10 @@ int main(int argc, char **argv) {
     VkQueue queue = device.getGraphicsQueue();
     VmaAllocator allocator = device.getAllocator();
     std::printf("  device:    %s\n", device.getProperties().deviceName);
+    std::printf("  swapchain format %d, storage image format %d%s\n",
+                (int)swapchain->getFormat(), (int)VK_FORMAT_R8G8B8A8_UNORM,
+                swapchain->getFormat() == VK_FORMAT_R8G8B8A8_UNORM
+                    ? " (same)" : " (differ — blit converts)");
 
     RT64::AccelerationStructureBuilder builder;
     if (!builder.initialize(&device, error)) {
@@ -411,13 +415,20 @@ int main(int argc, char **argv) {
                              VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr,
                              0, nullptr, 1, &toDst);
 
-        VkImageCopy copy = {};
-        copy.srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
-        copy.dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
-        copy.extent = { extent.width, extent.height, 1 };
-        vkCmdCopyImage(cmd, storageImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+        /* vkCmdCopyImage is a raw byte copy and does NOT convert formats.
+           The storage image is R8G8B8A8_UNORM (the format guaranteed for
+           storage use) while the swapchain is usually B8G8R8A8_UNORM, so a
+           copy silently exchanges red and blue. vkCmdBlitImage reads and
+           writes through the format, so it reorders correctly. */
+        VkImageBlit blit = {};
+        blit.srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
+        blit.dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
+        blit.srcOffsets[1] = { (int32_t)extent.width, (int32_t)extent.height, 1 };
+        blit.dstOffsets[1] = { (int32_t)extent.width, (int32_t)extent.height, 1 };
+        vkCmdBlitImage(cmd, storageImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                        swapchain->getImage(imageIndex),
-                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
+                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blit,
+                       VK_FILTER_NEAREST);
 
         VkImageMemoryBarrier toPresent = toDst;
         toPresent.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;

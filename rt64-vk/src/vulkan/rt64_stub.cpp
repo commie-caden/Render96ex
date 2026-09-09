@@ -11,7 +11,10 @@
  */
 #include "rt64/rt64.h"
 #include "rt64_device_vk.h"
+#include "rt64_mesh_vk.h"
+#include "rt64_raytracing_vk.h"
 
+#include <memory>
 #include <string>
 
 #if defined(_WIN32) || defined(_WIN64)
@@ -32,19 +35,40 @@ DLLEXPORT const char *RT64_GetLastError(void) {
 }
 
 /* -------------------------------------------------------------- device */
+namespace {
+/* Owns the device and the per-device acceleration structure builder. The
+   public API hands out an opaque RT64_DEVICE*, so this can grow without
+   touching the ABI. */
+struct DeviceContext {
+    RT64::DeviceVK device;
+    RT64::AccelerationStructureBuilder builder;
+    bool rayTracingReady = false;
+};
+} /* namespace */
+
 DLLEXPORT RT64_DEVICE *RT64_CreateDevice(void *hwnd) {
-    RT64::DeviceVK *device = new RT64::DeviceVK();
+    DeviceContext *ctx = new DeviceContext();
     std::string error;
-    if (!device->initialize(hwnd, error)) {
+    if (!ctx->device.initialize(hwnd, error)) {
         g_lastError = "Failed to create RT64 device: " + error;
-        delete device;
+        delete ctx;
         return nullptr;
     }
-    g_lastError.clear();
-    return (RT64_DEVICE *)device;
+    /* Ray tracing is optional at this stage: a device without it can still
+       serve the raster paths, so failure here is recorded, not fatal. */
+    if (ctx->builder.initialize(&ctx->device, error)) {
+        ctx->rayTracingReady = true;
+    } else {
+        g_lastError = "Ray tracing unavailable: " + error;
+    }
+    return (RT64_DEVICE *)ctx;
 }
 DLLEXPORT void RT64_DestroyDevice(RT64_DEVICE *device) {
-    delete (RT64::DeviceVK *)device;
+    DeviceContext *ctx = (DeviceContext *)device;
+    if (ctx != nullptr) {
+        ctx->builder.shutdown();
+        delete ctx;
+    }
 }
 DLLEXPORT void RT64_DrawDevice(RT64_DEVICE *device, int vsyncInterval,
                                float deltaTimeMs) {
@@ -101,16 +125,34 @@ DLLEXPORT void RT64_DestroyInstance(RT64_INSTANCE *instance) { (void)instance; }
 
 /* ----------------------------------------------------------------- mesh */
 DLLEXPORT RT64_MESH *RT64_CreateMesh(RT64_DEVICE *device, int flags) {
-    (void)device; (void)flags;
-    return nullptr;
+    DeviceContext *ctx = (DeviceContext *)device;
+    if (ctx == nullptr) {
+        g_lastError = "RT64_CreateMesh called with a null device";
+        return nullptr;
+    }
+    if ((flags & RT64_MESH_RAYTRACE_ENABLED) && !ctx->rayTracingReady) {
+        g_lastError = "Mesh requests ray tracing but the device has none";
+        return nullptr;
+    }
+    return (RT64_MESH *)new RT64::MeshVK(&ctx->device, &ctx->builder, flags);
 }
 DLLEXPORT void RT64_SetMesh(RT64_MESH *mesh, void *vertexArray,
                             int vertexCount, int vertexStride,
                             unsigned int *indexArray, int indexCount) {
-    (void)mesh; (void)vertexArray; (void)vertexCount; (void)vertexStride;
-    (void)indexArray; (void)indexCount;
+    RT64::MeshVK *m = (RT64::MeshVK *)mesh;
+    if (m == nullptr) {
+        g_lastError = "RT64_SetMesh called with a null mesh";
+        return;
+    }
+    std::string error;
+    if (!m->setMesh(vertexArray, vertexCount, vertexStride, indexArray,
+                    indexCount, error)) {
+        g_lastError = "RT64_SetMesh failed: " + error;
+    }
 }
-DLLEXPORT void RT64_DestroyMesh(RT64_MESH *mesh) { (void)mesh; }
+DLLEXPORT void RT64_DestroyMesh(RT64_MESH *mesh) {
+    delete (RT64::MeshVK *)mesh;
+}
 
 /* ---------------------------------------------------------------- scene */
 DLLEXPORT RT64_SCENE *RT64_CreateScene(RT64_DEVICE *device) {

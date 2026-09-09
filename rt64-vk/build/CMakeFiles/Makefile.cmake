@@ -60,5 +60,6 @@ set(CMAKE_DEPEND_INFO_FILES
   "CMakeFiles/rt64_window_test.dir/DependInfo.cmake"
   "CMakeFiles/rt64_shader_test.dir/DependInfo.cmake"
   "CMakeFiles/rt64_raster_test.dir/DependInfo.cmake"
+  "CMakeFiles/rt64_mesh_test.dir/DependInfo.cmake"
   "CMakeFiles/rt64_raytrace_test.dir/DependInfo.cmake"
   )
