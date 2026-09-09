@@ -40,6 +40,7 @@ if(RT64_BUILD_STUB)
         src/vulkan/rt64_texture_vk.cpp
         src/vulkan/rt64_scene_vk.cpp
         src/vulkan/rt64_view_vk.cpp
+        src/vulkan/rt64_shader_compiler_vk.cpp
         src/vulkan/rt64_vma_impl.cpp
     )
 else()
@@ -153,6 +154,28 @@ if(RT64_BUILD_SHADERS)
     add_dependencies(rt64 rt64_bindings)
     target_include_directories(rt64 PUBLIC ${CMAKE_BINARY_DIR}/generated)
     message(STATUS "RT64 shaders: dxc at ${RT64_DXC_EXECUTABLE}")
+
+    # The runtime compiler must use the SAME register shifts as the build-time
+    # one: runtime hit groups share a descriptor set with build-time shaders,
+    # so a different shift binds them to the wrong slots silently. Passing the
+    # CMake values through as definitions keeps a single source of truth.
+    target_compile_definitions(rt64 PRIVATE
+        RT64_VK_U_SHIFT=${RT64_VK_U_SHIFT}
+        RT64_VK_T_SHIFT=${RT64_VK_T_SHIFT}
+        RT64_VK_B_SHIFT=${RT64_VK_B_SHIFT}
+        RT64_VK_S_SHIFT=${RT64_VK_S_SHIFT})
+
+    # DXC's headers, for the runtime compiler.
+    get_filename_component(_dxc_root "${_dxc_bin_dir}/.." ABSOLUTE)
+    if(EXISTS ${_dxc_root}/include/dxc/dxcapi.h)
+        target_include_directories(rt64 SYSTEM PRIVATE ${_dxc_root}/include)
+        message(STATUS "RT64 runtime compiler: dxc headers at ${_dxc_root}/include")
+    else()
+        message(FATAL_ERROR
+            "dxc headers not found at ${_dxc_root}/include/dxc.\n"
+            "The runtime shader compiler needs them. ./tools/get_dxc.sh "
+            "installs headers alongside the binary.")
+    endif()
 endif()
 
 # ------------------------------------------------------------------ tests
@@ -205,6 +228,15 @@ target_link_libraries(rt64_raster_test PRIVATE rt64 Vulkan::Vulkan PkgConfig::SD
 if(RT64_BUILD_SHADERS)
     add_dependencies(rt64_raster_test rt64_shaders)
 endif()
+
+# Runtime HLSL -> SPIR-V compilation. No GPU needed.
+add_executable(rt64_compiler_test tests/compiler_test.cpp)
+target_include_directories(rt64_compiler_test PRIVATE
+    ${RT64_PUBLIC_INCLUDE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/vulkan)
+target_link_libraries(rt64_compiler_test PRIVATE rt64 ${CMAKE_DL_LIBS})
+target_include_directories(rt64_compiler_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
 # View render targets and the ray tracing descriptor set. Headless.
 add_executable(rt64_view_test tests/view_test.cpp)
