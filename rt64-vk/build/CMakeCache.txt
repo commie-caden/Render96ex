@@ -201,8 +201,14 @@ PKG_CONFIG_ARGN:STRING=
 //pkg-config executable
 PKG_CONFIG_EXECUTABLE:FILEPATH=/usr/bin/pkg-config
 
+//Compile the HLSL shaders to SPIR-V
+RT64_BUILD_SHADERS:BOOL=ON
+
 //Build the ABI stub instead of the real backend
 RT64_BUILD_STUB:BOOL=ON
+
+//DirectX Shader Compiler with SPIR-V backend
+RT64_DXC_EXECUTABLE:FILEPATH=/var/home/gamer/Projects/Render96ex_vkrt/rt64-vk/third_party/dxc/bin/dxc
 
 //Path to a program.
 Vulkan_GLSLANG_VALIDATOR_EXECUTABLE:FILEPATH=Vulkan_GLSLANG_VALIDATOR_EXECUTABLE-NOTFOUND

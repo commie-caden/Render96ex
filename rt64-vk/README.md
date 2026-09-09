@@ -68,6 +68,31 @@ the game's upscaler menu degrades to native resolution rather than breaking.
 
 ## Shader pipeline
 
-All 15 shaders compile to valid SPIR-V unmodified via DXC. See
-`check_shaders.sh` in the Phase 0 tooling for the exact invocation; the two
-flags that matter are `-HV 2018` and the `-fvk-*-shift` set.
+All 15 shaders compile to valid SPIR-V **unmodified**, as part of the build.
+`cmake/CompileShaders.cmake` drives DXC; output lands in `build/shaders/`.
+
+DXC is not packaged for Fedora, so fetch the upstream Linux build first:
+
+```sh
+./tools/get_dxc.sh          # installs into third_party/dxc
+```
+
+CMake finds it there automatically, or accepts
+`-DRT64_DXC_EXECUTABLE=/path/to/dxc`. It refuses to configure against a dxc
+built without the SPIR-V backend, since that failure is otherwise opaque.
+
+Two flags are load-bearing, both established by testing the real shaders:
+
+- `-HV 2018` — HLSL 2021 forbids vector conditions in short-circuiting
+  ternaries, which `GenerateMipsCS.hlsl` relies on.
+- `-fvk-{u,t,b,s}-shift` — DXC maps `b`/`t`/`u`/`s` registers into one binding
+  namespace per set, so `b0`, `t0`, `u0` and `s0` all collide on binding 0
+  (`PrimaryRayGen` alone aliases four resources). The scheme puts UAVs at
+  0..31 in `HeapIndices` order, SRVs at 100+, CBVs at 200+, samplers at 300+.
+
+**These shift values are the descriptor set layout.** Changing them in
+`CompileShaders.cmake` without changing the backend's bindings will produce
+silently wrong rendering rather than an error.
+
+Verified after the build: all 15 pass `spirv-val --target-env vulkan1.3`, and
+no shader has two resources on the same binding.

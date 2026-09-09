@@ -140,6 +140,19 @@ rt64/fast:
 .PHONY : rt64/fast
 
 #=============================================================================
+# Target rules for targets named rt64_shaders
+
+# Build rule for target.
+rt64_shaders: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 rt64_shaders
+.PHONY : rt64_shaders
+
+# fast build rule for target.
+rt64_shaders/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64_shaders.dir/build.make CMakeFiles/rt64_shaders.dir/build
+.PHONY : rt64_shaders/fast
+
+#=============================================================================
 # Target rules for targets named rt64_abi_test
 
 # Build rule for target.
@@ -178,6 +191,19 @@ rt64_window_test/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64_window_test.dir/build.make CMakeFiles/rt64_window_test.dir/build
 .PHONY : rt64_window_test/fast
 
+#=============================================================================
+# Target rules for targets named rt64_shader_test
+
+# Build rule for target.
+rt64_shader_test: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 rt64_shader_test
+.PHONY : rt64_shader_test
+
+# fast build rule for target.
+rt64_shader_test/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64_shader_test.dir/build.make CMakeFiles/rt64_shader_test.dir/build
+.PHONY : rt64_shader_test/fast
+
 src/vulkan/rt64_device_vk.o: src/vulkan/rt64_device_vk.cpp.o
 .PHONY : src/vulkan/rt64_device_vk.o
 
@@ -201,6 +227,30 @@ src/vulkan/rt64_device_vk.s: src/vulkan/rt64_device_vk.cpp.s
 src/vulkan/rt64_device_vk.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64.dir/build.make CMakeFiles/rt64.dir/src/vulkan/rt64_device_vk.cpp.s
 .PHONY : src/vulkan/rt64_device_vk.cpp.s
+
+src/vulkan/rt64_shaders_vk.o: src/vulkan/rt64_shaders_vk.cpp.o
+.PHONY : src/vulkan/rt64_shaders_vk.o
+
+# target to build an object file
+src/vulkan/rt64_shaders_vk.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64.dir/build.make CMakeFiles/rt64.dir/src/vulkan/rt64_shaders_vk.cpp.o
+.PHONY : src/vulkan/rt64_shaders_vk.cpp.o
+
+src/vulkan/rt64_shaders_vk.i: src/vulkan/rt64_shaders_vk.cpp.i
+.PHONY : src/vulkan/rt64_shaders_vk.i
+
+# target to preprocess a source file
+src/vulkan/rt64_shaders_vk.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64.dir/build.make CMakeFiles/rt64.dir/src/vulkan/rt64_shaders_vk.cpp.i
+.PHONY : src/vulkan/rt64_shaders_vk.cpp.i
+
+src/vulkan/rt64_shaders_vk.s: src/vulkan/rt64_shaders_vk.cpp.s
+.PHONY : src/vulkan/rt64_shaders_vk.s
+
+# target to generate assembly for a file
+src/vulkan/rt64_shaders_vk.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64.dir/build.make CMakeFiles/rt64.dir/src/vulkan/rt64_shaders_vk.cpp.s
+.PHONY : src/vulkan/rt64_shaders_vk.cpp.s
 
 src/vulkan/rt64_stub.o: src/vulkan/rt64_stub.cpp.o
 .PHONY : src/vulkan/rt64_stub.o
@@ -322,6 +372,30 @@ tests/device_info.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64_device_info.dir/build.make CMakeFiles/rt64_device_info.dir/tests/device_info.cpp.s
 .PHONY : tests/device_info.cpp.s
 
+tests/shader_test.o: tests/shader_test.cpp.o
+.PHONY : tests/shader_test.o
+
+# target to build an object file
+tests/shader_test.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64_shader_test.dir/build.make CMakeFiles/rt64_shader_test.dir/tests/shader_test.cpp.o
+.PHONY : tests/shader_test.cpp.o
+
+tests/shader_test.i: tests/shader_test.cpp.i
+.PHONY : tests/shader_test.i
+
+# target to preprocess a source file
+tests/shader_test.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64_shader_test.dir/build.make CMakeFiles/rt64_shader_test.dir/tests/shader_test.cpp.i
+.PHONY : tests/shader_test.cpp.i
+
+tests/shader_test.s: tests/shader_test.cpp.s
+.PHONY : tests/shader_test.s
+
+# target to generate assembly for a file
+tests/shader_test.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rt64_shader_test.dir/build.make CMakeFiles/rt64_shader_test.dir/tests/shader_test.cpp.s
+.PHONY : tests/shader_test.cpp.s
+
 tests/window_test.o: tests/window_test.cpp.o
 .PHONY : tests/window_test.o
 
@@ -355,13 +429,18 @@ help:
 	@echo "... edit_cache"
 	@echo "... rebuild_cache"
 	@echo "... test"
+	@echo "... rt64_shaders"
 	@echo "... rt64"
 	@echo "... rt64_abi_test"
 	@echo "... rt64_device_info"
+	@echo "... rt64_shader_test"
 	@echo "... rt64_window_test"
 	@echo "... src/vulkan/rt64_device_vk.o"
 	@echo "... src/vulkan/rt64_device_vk.i"
 	@echo "... src/vulkan/rt64_device_vk.s"
+	@echo "... src/vulkan/rt64_shaders_vk.o"
+	@echo "... src/vulkan/rt64_shaders_vk.i"
+	@echo "... src/vulkan/rt64_shaders_vk.s"
 	@echo "... src/vulkan/rt64_stub.o"
 	@echo "... src/vulkan/rt64_stub.i"
 	@echo "... src/vulkan/rt64_stub.s"
@@ -377,6 +456,9 @@ help:
 	@echo "... tests/device_info.o"
 	@echo "... tests/device_info.i"
 	@echo "... tests/device_info.s"
+	@echo "... tests/shader_test.o"
+	@echo "... tests/shader_test.i"
+	@echo "... tests/shader_test.s"
 	@echo "... tests/window_test.o"
 	@echo "... tests/window_test.i"
 	@echo "... tests/window_test.s"

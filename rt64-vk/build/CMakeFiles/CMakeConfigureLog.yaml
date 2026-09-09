@@ -1669,3 +1669,189 @@ events:
       CMAKE_SYSTEM_LIBRARY_PATH:
         - "/usr/lib/X11"
 ...
+
+---
+events:
+  -
+    kind: "find-v1"
+    backtrace:
+      - "cmake/CompileShaders.cmake:31 (find_program)"
+      - "CMakeLists.txt:117 (rt64_find_dxc)"
+    mode: "program"
+    variable: "RT64_DXC_EXECUTABLE"
+    description: "DirectX Shader Compiler with SPIR-V backend"
+    settings:
+      SearchFramework: "NEVER"
+      SearchAppBundle: "NEVER"
+      CMAKE_FIND_USE_CMAKE_PATH: true
+      CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_CMAKE_SYSTEM_PATH: true
+      CMAKE_FIND_USE_INSTALL_PREFIX: true
+    names:
+      - "dxc"
+    candidate_directories:
+      - "/var/home/gamer/Projects/Render96ex_vkrt/rt64-vk/third_party/dxc/bin/"
+      - "/bin/"
+      - "/var/home/gamer/.cargo/bin/"
+      - "/var/home/gamer/.local/bin/"
+      - "/var/home/gamer/bin/"
+      - "/usr/local/bin/"
+      - "/usr/bin/"
+      - "/usr/local/sbin/"
+      - "/usr/sbin/"
+      - "/home/linuxbrew/.linuxbrew/bin/"
+      - "/home/linuxbrew/.linuxbrew/sbin/"
+      - "/sbin/"
+      - "/usr/local/bin/"
+      - "/usr/local/sbin/"
+      - "/usr/local/"
+      - "/usr/bin/"
+      - "/usr/sbin/"
+      - "/usr/"
+      - "/bin/"
+      - "/sbin/"
+      - "/usr/X11R6/bin/"
+      - "/usr/X11R6/sbin/"
+      - "/usr/X11R6/"
+      - "/usr/pkg/bin/"
+      - "/usr/pkg/sbin/"
+      - "/usr/pkg/"
+      - "/opt/bin/"
+      - "/opt/sbin/"
+      - "/opt/"
+    searched_directories:
+      - "/var/home/gamer/Projects/Render96ex_vkrt/rt64-vk/third_party/dxc/bin/dxc"
+      - "/bin/dxc"
+      - "/var/home/gamer/.cargo/bin/dxc"
+      - "/var/home/gamer/.local/bin/dxc"
+      - "/var/home/gamer/bin/dxc"
+      - "/usr/local/bin/dxc"
+      - "/usr/bin/dxc"
+      - "/usr/local/sbin/dxc"
+      - "/usr/sbin/dxc"
+      - "/home/linuxbrew/.linuxbrew/bin/dxc"
+      - "/home/linuxbrew/.linuxbrew/sbin/dxc"
+      - "/sbin/dxc"
+      - "/usr/local/bin/dxc"
+      - "/usr/local/sbin/dxc"
+      - "/usr/local/dxc"
+      - "/usr/bin/dxc"
+      - "/usr/sbin/dxc"
+      - "/usr/dxc"
+      - "/bin/dxc"
+      - "/sbin/dxc"
+      - "/usr/X11R6/bin/dxc"
+      - "/usr/X11R6/sbin/dxc"
+      - "/usr/X11R6/dxc"
+      - "/usr/pkg/bin/dxc"
+      - "/usr/pkg/sbin/dxc"
+      - "/usr/pkg/dxc"
+      - "/opt/bin/dxc"
+      - "/opt/sbin/dxc"
+      - "/opt/dxc"
+    found: false
+    search_context:
+      ENV{PATH}:
+        - "/var/home/gamer/.cargo/bin"
+        - "/var/home/gamer/.local/bin"
+        - "/var/home/gamer/bin"
+        - "/usr/local/bin"
+        - "/usr/bin"
+        - "/usr/local/sbin"
+        - "/usr/sbin"
+        - "/home/linuxbrew/.linuxbrew/bin"
+        - "/home/linuxbrew/.linuxbrew/sbin"
+        - "/usr/local/bin"
+        - "/usr/bin"
+        - "/sbin"
+        - "/bin"
+      CMAKE_INSTALL_PREFIX: "/usr/local"
+      CMAKE_SYSTEM_PREFIX_PATH:
+        - "/usr/local"
+        - "/usr"
+        - "/"
+        - "/usr"
+        - "/usr/local"
+        - "/usr/X11R6"
+        - "/usr/pkg"
+        - "/opt"
+...
+
+---
+events:
+  -
+    kind: "find-v1"
+    backtrace:
+      - "cmake/CompileShaders.cmake:31 (find_program)"
+      - "CMakeLists.txt:117 (rt64_find_dxc)"
+    mode: "program"
+    variable: "RT64_DXC_EXECUTABLE"
+    description: "DirectX Shader Compiler with SPIR-V backend"
+    settings:
+      SearchFramework: "NEVER"
+      SearchAppBundle: "NEVER"
+      CMAKE_FIND_USE_CMAKE_PATH: true
+      CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_CMAKE_SYSTEM_PATH: true
+      CMAKE_FIND_USE_INSTALL_PREFIX: true
+    names:
+      - "dxc"
+    candidate_directories:
+      - "/var/home/gamer/Projects/Render96ex_vkrt/rt64-vk/third_party/dxc/bin/"
+      - "/bin/"
+      - "/var/home/gamer/.cargo/bin/"
+      - "/var/home/gamer/.local/bin/"
+      - "/var/home/gamer/bin/"
+      - "/usr/local/bin/"
+      - "/usr/bin/"
+      - "/usr/local/sbin/"
+      - "/usr/sbin/"
+      - "/home/linuxbrew/.linuxbrew/bin/"
+      - "/home/linuxbrew/.linuxbrew/sbin/"
+      - "/sbin/"
+      - "/usr/local/bin/"
+      - "/usr/local/sbin/"
+      - "/usr/local/"
+      - "/usr/bin/"
+      - "/usr/sbin/"
+      - "/usr/"
+      - "/bin/"
+      - "/sbin/"
+      - "/usr/X11R6/bin/"
+      - "/usr/X11R6/sbin/"
+      - "/usr/X11R6/"
+      - "/usr/pkg/bin/"
+      - "/usr/pkg/sbin/"
+      - "/usr/pkg/"
+      - "/opt/bin/"
+      - "/opt/sbin/"
+      - "/opt/"
+    found: "/var/home/gamer/Projects/Render96ex_vkrt/rt64-vk/third_party/dxc/bin/dxc"
+    search_context:
+      ENV{PATH}:
+        - "/var/home/gamer/.cargo/bin"
+        - "/var/home/gamer/.local/bin"
+        - "/var/home/gamer/bin"
+        - "/usr/local/bin"
+        - "/usr/bin"
+        - "/usr/local/sbin"
+        - "/usr/sbin"
+        - "/home/linuxbrew/.linuxbrew/bin"
+        - "/home/linuxbrew/.linuxbrew/sbin"
+        - "/usr/local/bin"
+        - "/usr/bin"
+        - "/sbin"
+        - "/bin"
+      CMAKE_INSTALL_PREFIX: "/usr/local"
+      CMAKE_SYSTEM_PREFIX_PATH:
+        - "/usr/local"
+        - "/usr"
+        - "/"
+        - "/usr"
+        - "/usr/local"
+        - "/usr/X11R6"
+        - "/usr/pkg"
+        - "/opt"
+...

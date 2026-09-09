@@ -10,6 +10,9 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 option(RT64_BUILD_STUB "Build the ABI stub instead of the real backend" ON)
+option(RT64_BUILD_SHADERS "Compile the HLSL shaders to SPIR-V" ON)
+
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
 find_package(Vulkan REQUIRED)
 
@@ -30,6 +33,7 @@ if(RT64_BUILD_STUB)
         src/vulkan/rt64_stub.cpp
         src/vulkan/rt64_device_vk.cpp
         src/vulkan/rt64_swapchain_vk.cpp
+        src/vulkan/rt64_shaders_vk.cpp
         src/vulkan/rt64_vma_impl.cpp
     )
 else()
@@ -107,6 +111,23 @@ set_target_properties(rt64 PROPERTIES
     PREFIX "lib"
 )
 
+# ---------------------------------------------------------------- shaders
+if(RT64_BUILD_SHADERS)
+    include(CompileShaders)
+    rt64_find_dxc()
+    # dxc needs its own libdxcompiler.so; the bundled build is not on the
+    # system library path.
+    get_filename_component(_dxc_bin_dir "${RT64_DXC_EXECUTABLE}" DIRECTORY)
+    if(_dxc_bin_dir)
+        set(RT64_DXC_LIBRARY_DIR "${_dxc_bin_dir}/../lib")
+    endif()
+    rt64_compile_shaders(rt64_shaders
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/shaders
+        ${CMAKE_BINARY_DIR}/shaders)
+    add_dependencies(rt64 rt64_shaders)
+    message(STATUS "RT64 shaders: dxc at ${RT64_DXC_EXECUTABLE}")
+endif()
+
 # ------------------------------------------------------------------ tests
 enable_testing()
 add_executable(rt64_abi_test tests/abi_test.cpp)
@@ -133,3 +154,15 @@ target_include_directories(rt64_window_test PRIVATE
 target_include_directories(rt64_window_test SYSTEM PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/contrib/vma)
 target_link_libraries(rt64_window_test PRIVATE rt64 Vulkan::Vulkan PkgConfig::SDL2)
+
+# Creates every shader module on the real device. Headless, needs a GPU.
+add_executable(rt64_shader_test tests/shader_test.cpp)
+target_include_directories(rt64_shader_test PRIVATE
+    ${RT64_PUBLIC_INCLUDE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/vulkan)
+target_include_directories(rt64_shader_test SYSTEM PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/contrib/vma)
+target_link_libraries(rt64_shader_test PRIVATE rt64 Vulkan::Vulkan PkgConfig::SDL2)
+if(RT64_BUILD_SHADERS)
+    add_dependencies(rt64_shader_test rt64_shaders)
+endif()
