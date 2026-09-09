@@ -44,6 +44,11 @@ const char *const kRequiredDeviceExtensions[] = {
     VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME,
     VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
     VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,
+    /* Every raygen shader DECLARES OpCapability RayQueryKHR even though none
+       contains a single OpRayQuery instruction — DXC emits it speculatively
+       for lib_6_3. Vulkan validates declared capabilities, not used ones, so
+       the feature has to be enabled or vkCreateShaderModule is rejected. */
+    VK_KHR_RAY_QUERY_EXTENSION_NAME,
 };
 
 bool hasExtension(const std::vector<VkExtensionProperties> &available,
@@ -310,11 +315,17 @@ bool DeviceVK::createLogicalDevice(std::string &error) {
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR;
     rtFeatures.rayTracingPipeline = VK_TRUE;
 
+    VkPhysicalDeviceRayQueryFeaturesKHR rayQueryFeatures = {};
+    rayQueryFeatures.sType =
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR;
+    rayQueryFeatures.rayQuery = VK_TRUE;
+    rayQueryFeatures.pNext = &rtFeatures;
+
     VkPhysicalDeviceAccelerationStructureFeaturesKHR asFeatures = {};
     asFeatures.sType =
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
     asFeatures.accelerationStructure = VK_TRUE;
-    asFeatures.pNext = &rtFeatures;
+    asFeatures.pNext = &rayQueryFeatures;
 
     VkPhysicalDeviceVulkan13Features vk13 = {};
     vk13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;

@@ -14,6 +14,8 @@
 #include "rt64_mesh_vk.h"
 #include "rt64_texture_vk.h"
 #include "rt64_scene_vk.h"
+#include "rt64_shader_vk.h"
+#include "rt64_shader_compiler_vk.h"
 #include "rt64_raytracing_vk.h"
 
 #include <memory>
@@ -44,7 +46,9 @@ namespace {
 struct DeviceContext {
     RT64::DeviceVK device;
     RT64::AccelerationStructureBuilder builder;
+    RT64::ShaderCompilerVK shaderCompiler;
     bool rayTracingReady = false;
+    bool compilerReady = false;
 };
 } /* namespace */
 
@@ -62,6 +66,11 @@ DLLEXPORT RT64_DEVICE *RT64_CreateDevice(void *hwnd) {
         ctx->rayTracingReady = true;
     } else {
         g_lastError = "Ray tracing unavailable: " + error;
+    }
+    /* Loaded lazily so a device that never creates a shader does not need
+       libdxcompiler.so present. */
+    if (ctx->shaderCompiler.initialize("", error)) {
+        ctx->compilerReady = true;
     }
     return (RT64_DEVICE *)ctx;
 }
@@ -207,11 +216,38 @@ DLLEXPORT RT64_SHADER *RT64_CreateShader(RT64_DEVICE *device,
                                          int hAddr, int vAddr,
                                          bool normalMapEnabled,
                                          bool specularMapEnabled) {
-    (void)device; (void)shaderId; (void)filter; (void)hAddr; (void)vAddr;
-    (void)normalMapEnabled; (void)specularMapEnabled;
-    return nullptr;
+    DeviceContext *ctx = (DeviceContext *)device;
+    if (ctx == nullptr) {
+        g_lastError = "RT64_CreateShader called with a null device";
+        return nullptr;
+    }
+    if (!ctx->compilerReady) {
+        g_lastError = "RT64_CreateShader needs libdxcompiler.so, which was not "
+                      "found. Set RT64_DXC_LIB or place it beside the "
+                      "executable.";
+        return nullptr;
+    }
+
+    int flags = RT64_SHADER_RASTER_ENABLED | RT64_SHADER_RAYTRACE_ENABLED;
+    if (normalMapEnabled)   { flags |= RT64_SHADER_NORMAL_MAP_ENABLED; }
+    if (specularMapEnabled) { flags |= RT64_SHADER_SPECULAR_MAP_ENABLED; }
+
+    RT64::ShaderVK *shader = new RT64::ShaderVK(
+        &ctx->shaderCompiler, shaderId,
+        RT64::convertFilter((unsigned int)filter),
+        RT64::convertAddressingMode((unsigned int)hAddr),
+        RT64::convertAddressingMode((unsigned int)vAddr), flags);
+    if (!shader->isValid()) {
+        g_lastError = "RT64_CreateShader failed for shader " +
+                      std::to_string(shaderId) + ": " + shader->getLastError();
+        delete shader;
+        return nullptr;
+    }
+    return (RT64_SHADER *)shader;
 }
-DLLEXPORT void RT64_DestroyShader(RT64_SHADER *shader) { (void)shader; }
+DLLEXPORT void RT64_DestroyShader(RT64_SHADER *shader) {
+    delete (RT64::ShaderVK *)shader;
+}
 
 /* -------------------------------------------------------------- texture */
 DLLEXPORT RT64_TEXTURE *RT64_CreateTexture(RT64_DEVICE *device,

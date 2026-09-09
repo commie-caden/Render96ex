@@ -3,6 +3,7 @@
 #include "rt64_global_params.h"
 #include "rt64_scene_vk.h"
 #include "rt64_shader_bindings.h"
+#include "rt64_descriptor_layout_vk.h"
 
 #include <cstring>
 
@@ -425,6 +426,13 @@ bool ViewVK::updateDescriptorSet(VkDescriptorSetLayout layout,
                 break;
             }
             case VK_DESCRIPTOR_TYPE_SAMPLER: {
+                /* Bindings 301..318 are immutable samplers baked into the
+                   layout; writing them is invalid. Only the tracer's own
+                   sampler at 300 is written. */
+                if (b.binding >= DescriptorLayouts::kFirstMaterialSampler &&
+                    b.binding <= DescriptorLayouts::kLastMaterialSampler) {
+                    continue;
+                }
                 imageInfos.push_back({ sampler, VK_NULL_HANDLE,
                                        VK_IMAGE_LAYOUT_UNDEFINED });
                 write.pImageInfo = &imageInfos.back();

@@ -449,6 +449,7 @@ bool ShaderBindingTable::build(DeviceVK *device, const RayTracingFunctions &fn,
         src += handleSize;
     }
 
+    this->raygenCount = raygenCount;
     raygen.deviceAddress = buffer.address;
     raygen.stride = handleStride;
     raygen.size = handleStride;          /* must equal stride for raygen */

@@ -26,13 +26,22 @@ class DescriptorLayouts {
 public:
     ~DescriptorLayouts();
 
+    /* Bindings 301..318 correspond to the generator's per-combination
+       samplers; 300 is the tracer's own sampler and is written normally. */
+    static const uint32_t kFirstMaterialSampler = 301;
+    static const uint32_t kLastMaterialSampler = 318;
+
     bool create(VkDevice device, std::string &error);
     const DescriptorSetLayoutInfo *find(const std::string &name) const;
     const std::vector<DescriptorSetLayoutInfo> &all() const { return layouts; }
 
 private:
+    bool createImmutableSamplers(std::string &error);
+
     VkDevice device = VK_NULL_HANDLE;
     std::vector<DescriptorSetLayoutInfo> layouts;
+    /* Indexed by register number, 1..18. */
+    std::vector<VkSampler> materialSamplers;
 };
 
 } /* namespace RT64 */

@@ -142,7 +142,15 @@ public:
                uint32_t hitCount, std::string &error);
     void destroy(VmaAllocator allocator);
 
-    const VkStridedDeviceAddressRegionKHR &raygenRegion() const { return raygen; }
+    /* The spec requires the raygen region's size to equal its stride, so a
+       dispatch can only ever see one raygen record. Selecting among several
+       means pointing the region at a different record, not enlarging it. */
+    VkStridedDeviceAddressRegionKHR raygenRegion(uint32_t index = 0) const {
+        VkStridedDeviceAddressRegionKHR region = raygen;
+        region.deviceAddress = raygen.deviceAddress + index * raygen.stride;
+        return region;
+    }
+    uint32_t getRaygenCount() const { return raygenCount; }
     const VkStridedDeviceAddressRegionKHR &missRegion()   const { return miss; }
     const VkStridedDeviceAddressRegionKHR &hitRegion()    const { return hit; }
     const VkStridedDeviceAddressRegionKHR &callableRegion() const { return callable; }
@@ -154,6 +162,7 @@ public:
 
 private:
     BufferVK buffer;
+    uint32_t raygenCount = 0;
     VkStridedDeviceAddressRegionKHR raygen = {};
     VkStridedDeviceAddressRegionKHR miss = {};
     VkStridedDeviceAddressRegionKHR hit = {};

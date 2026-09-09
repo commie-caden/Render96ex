@@ -231,8 +231,14 @@ def reflect(spv_path):
 # that impossible, and an unrecognised shader is an error rather than a silent
 # merge into whichever group its name resembles.
 GROUP_MEMBERS = {
+    # HitGroupReference is never dispatched. It exists so reflection sees the
+    # bindings and shader stages that only the runtime-generated hit groups
+    # use. Without it the layout omits vertexBuffer, indexBuffer and
+    # instanceTransforms, and carries stageFlags of RAYGEN|MISS only, which
+    # the driver rejects at pipeline creation.
     "RayTracing":   ["PrimaryRayGen", "DirectRayGen", "IndirectRayGen",
-                     "ReflectionRayGen", "RefractionRayGen"],
+                     "ReflectionRayGen", "RefractionRayGen",
+                     "HitGroupReference"],
     "Compose":      ["ComposePS"],
     "PostProcess":  ["PostProcessPS"],
     "Debug":        ["DebugPS"],

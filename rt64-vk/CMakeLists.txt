@@ -41,6 +41,8 @@ if(RT64_BUILD_STUB)
         src/vulkan/rt64_scene_vk.cpp
         src/vulkan/rt64_view_vk.cpp
         src/vulkan/rt64_shader_compiler_vk.cpp
+        src/vulkan/rt64_shader_vk.cpp
+        src/vulkan/rt64_rt_pipeline_vk.cpp
         src/vulkan/rt64_vma_impl.cpp
     )
 else()
@@ -228,6 +230,24 @@ target_link_libraries(rt64_raster_test PRIVATE rt64 Vulkan::Vulkan PkgConfig::SD
 if(RT64_BUILD_SHADERS)
     add_dependencies(rt64_raster_test rt64_shaders)
 endif()
+
+# The real ray tracing pipeline: raygen + miss + per-material hit groups.
+add_executable(rt64_pipeline_test tests/pipeline_test.cpp)
+target_include_directories(rt64_pipeline_test PRIVATE
+    ${RT64_PUBLIC_INCLUDE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/vulkan
+    ${CMAKE_BINARY_DIR}/generated)
+target_include_directories(rt64_pipeline_test SYSTEM PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/contrib/vma)
+target_link_libraries(rt64_pipeline_test PRIVATE rt64 Vulkan::Vulkan PkgConfig::SDL2 ${CMAKE_DL_LIBS})
+add_dependencies(rt64_pipeline_test rt64_bindings)
+
+# RT64_CreateShader against real combiner IDs. No GPU needed.
+add_executable(rt64_shadergen_test tests/shadergen_test.cpp)
+target_include_directories(rt64_shadergen_test PRIVATE
+    ${RT64_PUBLIC_INCLUDE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/vulkan)
+target_link_libraries(rt64_shadergen_test PRIVATE rt64 ${CMAKE_DL_LIBS})
 
 # Runtime HLSL -> SPIR-V compilation. No GPU needed.
 add_executable(rt64_compiler_test tests/compiler_test.cpp)
