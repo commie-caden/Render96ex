@@ -1,1 +1,0 @@
-/usr/bin/c++ -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/rt64_descriptor_test.dir/link.d CMakeFiles/rt64_descriptor_test.dir/tests/descriptor_test.cpp.o -o rt64_descriptor_test  -Wl,-rpath,/var/home/gamer/Projects/Render96ex_vkrt/rt64-vk/build librt64.so /usr/lib64/libvulkan.so /usr/lib64/libSDL2.so

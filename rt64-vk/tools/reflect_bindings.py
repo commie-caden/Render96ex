@@ -29,6 +29,27 @@ from pathlib import Path
 SAMPLED_READ = "1"
 SAMPLED_STORAGE = "2"
 
+# SPIR-V image format -> VkFormat. Storage images must be created with the
+# format the shader declares, so this is not cosmetic.
+SPV_FORMAT_TO_VK = {
+    "Rgba32f": "VK_FORMAT_R32G32B32A32_SFLOAT",
+    "Rgba16f": "VK_FORMAT_R16G16B16A16_SFLOAT",
+    "Rg32f":   "VK_FORMAT_R32G32_SFLOAT",
+    "Rg16f":   "VK_FORMAT_R16G16_SFLOAT",
+    "R32f":    "VK_FORMAT_R32_SFLOAT",
+    "R16f":    "VK_FORMAT_R16_SFLOAT",
+    "R32i":    "VK_FORMAT_R32_SINT",
+    "R32ui":   "VK_FORMAT_R32_UINT",
+    "Rgba8":   "VK_FORMAT_R8G8B8A8_UNORM",
+    "Rgba8Snorm":  "VK_FORMAT_R8G8B8A8_SNORM",
+    "Rgba16":      "VK_FORMAT_R16G16B16A16_UNORM",
+    "Rgba16Snorm": "VK_FORMAT_R16G16B16A16_SNORM",
+    "R16ui":       "VK_FORMAT_R16_UINT",
+    "R16i":        "VK_FORMAT_R16_SINT",
+    "Rg16f":       "VK_FORMAT_R16G16_SFLOAT",
+    "Unknown": "VK_FORMAT_UNDEFINED",
+}
+
 STAGE_FROM_EXEC_MODEL = {
     "Vertex": "VK_SHADER_STAGE_VERTEX_BIT",
     "Fragment": "VK_SHADER_STAGE_FRAGMENT_BIT",
@@ -92,6 +113,31 @@ class Module:
 
         return self._type_to_descriptor(pointee, storage_class)
 
+    def image_format(self, var_id):
+        """Declared storage format of an image variable, or UNDEFINED."""
+        entry = self.results.get(var_id)
+        if entry is None or entry[0] != "OpVariable":
+            return "VK_FORMAT_UNDEFINED"
+        ptr = self.results.get(entry[1].split()[0])
+        if ptr is None:
+            return "VK_FORMAT_UNDEFINED"
+        type_id = ptr[1].split()[1] if len(ptr[1].split()) > 1 else None
+        seen = 0
+        while type_id and seen < 8:
+            seen += 1
+            t = self.results.get(type_id)
+            if t is None:
+                break
+            if t[0] == "OpTypeArray":
+                type_id = t[1].split()[0]
+                continue
+            if t[0] == "OpTypeImage":
+                parts = t[1].split()
+                if len(parts) >= 7:
+                    return SPV_FORMAT_TO_VK.get(parts[6], "VK_FORMAT_UNDEFINED")
+            break
+        return "VK_FORMAT_UNDEFINED"
+
     def _type_to_descriptor(self, type_id, storage_class, count=1):
         entry = self.results.get(type_id)
         if entry is None:
@@ -120,13 +166,19 @@ class Module:
         if op == "OpTypeImage":
             # sampled type, Dim, Depth, Arrayed, MS, Sampled, Format
             if len(parts) >= 6:
+                dim = parts[1]
                 sampled = parts[5]
+                # Dim=Buffer is a texel buffer, not an image. RT64 declares
+                # gHitColor and friends as RWBuffer<>, which reaches here as
+                # Buffer/Sampled=2 — typing those as STORAGE_IMAGE produces a
+                # descriptor mismatch that renders garbage rather than erroring.
+                if dim == "Buffer":
+                    if sampled == SAMPLED_STORAGE:
+                        return "VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER", count
+                    return "VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER", count
                 if sampled == SAMPLED_STORAGE:
                     return "VK_DESCRIPTOR_TYPE_STORAGE_IMAGE", count
                 if sampled == SAMPLED_READ:
-                    dim = parts[1] if len(parts) > 1 else ""
-                    if dim == "Buffer":
-                        return "VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER", count
                     return "VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE", count
             return "VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE", count
 
@@ -165,32 +217,44 @@ def reflect(spv_path):
         dtype, count = module.descriptor_of(var_id)
         if dtype is None:
             continue
-        yield dset, binding, dtype, count, stages, names.get(var_id, var_id)
+        yield (dset, binding, dtype, count, stages,
+               names.get(var_id, var_id), module.image_format(var_id))
 
 
 # One group per D3D12 heap. Shaders in a group share a descriptor set layout,
 # so their bindings must agree; shaders in different groups need not.
-GROUPS = [
-    ("RayTracing",  lambda n: n.endswith("RayGen")),
-    ("Compose",     lambda n: n == "ComposePS"),
-    ("PostProcess", lambda n: n == "PostProcessPS"),
-    ("Debug",       lambda n: n == "DebugPS"),
-    ("Gaussian",    lambda n: n == "GaussianFilterRGB3x3CS"),
-    ("GenerateMips", lambda n: n == "GenerateMipsCS"),
-    ("Im3D",        lambda n: n.startswith("Im3D")),
-]
+#
+# Membership is by EXACT NAME, never a pattern. A predicate like
+# name.endswith("RayGen") silently swallows any shader that happens to match —
+# a test shader called TestRayGen joined the RayTracing group and, because its
+# gOutput sorts before gViewDirection, renamed binding 0. Explicit lists make
+# that impossible, and an unrecognised shader is an error rather than a silent
+# merge into whichever group its name resembles.
+GROUP_MEMBERS = {
+    "RayTracing":   ["PrimaryRayGen", "DirectRayGen", "IndirectRayGen",
+                     "ReflectionRayGen", "RefractionRayGen"],
+    "Compose":      ["ComposePS"],
+    "PostProcess":  ["PostProcessPS"],
+    "Debug":        ["DebugPS"],
+    "Gaussian":     ["GaussianFilterRGB3x3CS"],
+    "GenerateMips": ["GenerateMipsCS"],
+    "Im3D":         ["Im3DVS", "Im3DPS", "Im3DGSLines", "Im3DGSPoints"],
+}
+
+# Shaders that legitimately declare no descriptors.
+NO_BINDINGS = ["FullScreenVS"]
 
 
 def merge_group(spv_files):
     merged = {}     # (set, binding) -> dict
     for spv in spv_files:
-        for dset, binding, dtype, count, stages, name in reflect(spv):
+        for dset, binding, dtype, count, stages, name, fmt in reflect(spv):
             key = (dset, binding)
             existing = merged.get(key)
             if existing is None:
                 merged[key] = {"type": dtype, "count": count,
                                "stages": set(stages), "names": {name},
-                               "shaders": {spv.stem}}
+                               "shaders": {spv.stem}, "format": fmt}
                 continue
             # Same binding used by several shaders: types must agree, or the
             # layout is unsatisfiable and we should say so loudly.
@@ -201,6 +265,8 @@ def merge_group(spv_files):
                     f"{sorted(existing['shaders'])}) vs {dtype} (from "
                     f"{spv.stem}). These shaders cannot share a descriptor "
                     f"set layout — check the GROUPS table.")
+            if fmt != "VK_FORMAT_UNDEFINED":
+                existing["format"] = fmt
             existing["count"] = max(existing["count"], count)
             existing["stages"] |= stages
             existing["names"].add(name)
@@ -214,16 +280,34 @@ def main():
     spv_dir, out_path = Path(sys.argv[1]), Path(sys.argv[2])
 
     all_spv = sorted(spv_dir.glob("*.spv"))
+    by_stem = {f.stem: f for f in all_spv}
+
+    # An unexpected .spv in this directory means either a new shader that needs
+    # a group, or a stray file that would corrupt an existing one. Either way,
+    # say so rather than guessing.
+    known = set(NO_BINDINGS)
+    for members in GROUP_MEMBERS.values():
+        known.update(members)
+    strays = sorted(set(by_stem) - known)
+    if strays:
+        raise SystemExit(
+            "unrecognised shader(s) in " + str(spv_dir) + ": " +
+            ", ".join(strays) + "\nAdd them to GROUP_MEMBERS (or NO_BINDINGS) "
+            "in reflect_bindings.py. Test shaders belong in a separate output "
+            "directory, not here.")
+
     groups = []
-    covered = set()
-    for name, predicate in GROUPS:
-        files = [f for f in all_spv if predicate(f.stem)]
+    for name in GROUP_MEMBERS:
+        files = [by_stem[m] for m in GROUP_MEMBERS[name] if m in by_stem]
+        missing = [m for m in GROUP_MEMBERS[name] if m not in by_stem]
+        if missing:
+            raise SystemExit(
+                f"group {name} expects {missing} but they were not compiled")
         if not files:
             continue
-        covered.update(f.stem for f in files)
         groups.append((name, files, merge_group(files)))
 
-    uncovered = sorted(f.stem for f in all_spv if f.stem not in covered)
+    uncovered = sorted(m for m in NO_BINDINGS if m in by_stem)
 
     lines = [
         "/* Generated by tools/reflect_bindings.py — do not edit.",
@@ -249,6 +333,7 @@ def main():
         "    uint32_t count;",
         "    VkShaderStageFlags stages;",
         "    const char *name;",
+        "    VkFormat format;   /* declared storage format, or UNDEFINED */",
         "};",
         "",
     ]
@@ -262,7 +347,8 @@ def main():
             stages = " | ".join(sorted(info["stages"])) or "0"
             vname = sorted(info["names"])[0]
             lines.append(f"    {{ {dset}, {binding}, {info['type']}, "
-                         f"{info['count']}, {stages}, \"{vname}\" }},")
+                         f"{info['count']}, {stages}, \"{vname}\", "
+                         f"{info.get('format', 'VK_FORMAT_UNDEFINED')} }},")
         lines.append("};")
         lines.append(f"static const uint32_t kBindingCount{name} = "
                      f"{len(merged)};")
@@ -292,7 +378,7 @@ def main():
     out_path.write_text("\n".join(lines))
     for name, files, merged in groups:
         print(f"  {name:<13} {len(merged):>3} bindings from "
-              f"{len(files)} shader(s)")
+              f"{', '.join(sorted(f.stem for f in files))}")
     if uncovered:
         print(f"  (no bindings / ungrouped: {', '.join(uncovered)})")
 

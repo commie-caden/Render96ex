@@ -13,6 +13,7 @@
 #include "rt64_swapchain_vk.h"
 
 #include <algorithm>
+#include <cstdio>
 #include <cstring>
 #include <vector>
 
@@ -22,6 +23,21 @@
 namespace RT64 {
 
 namespace {
+
+VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
+    VkDebugUtilsMessageSeverityFlagBitsEXT severity,
+    VkDebugUtilsMessageTypeFlagsEXT,
+    const VkDebugUtilsMessengerCallbackDataEXT *data,
+    void *userData) {
+    const bool isError =
+        (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) != 0;
+    if (userData != nullptr) {
+        ((const RT64::DeviceVK *)userData)->recordValidationMessage(isError);
+    }
+    std::fprintf(stderr, "[vulkan %s] %s\n", isError ? "error" : "warning",
+                 data->pMessage ? data->pMessage : "");
+    return VK_FALSE;
+}
 
 /* Extensions that are still extensions in 1.4, so must be requested. */
 const char *const kRequiredDeviceExtensions[] = {
@@ -126,6 +142,11 @@ bool DeviceVK::createInstance(std::string &error) {
         if (layers.empty()) {
             /* Not fatal — just means the layers are not installed. */
             validationEnabled = false;
+        } else {
+            /* Needed to receive messages through a messenger rather than only
+               having them printed by the layer itself. */
+            ownedExtensionNames.emplace_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+            instanceExtensions.push_back(ownedExtensionNames.back().c_str());
         }
     }
 
@@ -370,10 +391,33 @@ bool DeviceVK::createAllocator(std::string &error) {
     return true;
 }
 
+bool DeviceVK::createDebugMessenger(std::string &error) {
+    auto create = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(
+        instance, "vkCreateDebugUtilsMessengerEXT");
+    if (create == nullptr) {
+        error = "VK_EXT_debug_utils not available";
+        return false;
+    }
+    VkDebugUtilsMessengerCreateInfoEXT info = {};
+    info.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+    info.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
+                           VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+    info.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
+                       VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
+                       VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+    info.pfnUserCallback = debugCallback;
+    info.pUserData = this;
+    return create(instance, &info, nullptr, &debugMessenger) == VK_SUCCESS;
+}
+
 bool DeviceVK::initialize(void *window, std::string &error) {
     windowHandle = window;
     if (!gatherInstanceExtensions(error)) { return false; }
     if (!createInstance(error))           { return false; }
+    if (validationEnabled) {
+        std::string ignored;
+        createDebugMessenger(ignored);   /* best effort */
+    }
 
     /* The surface must exist before the physical device is chosen, so that
        present support can be part of the decision. */
@@ -403,6 +447,14 @@ DeviceVK::~DeviceVK() {
     /* Swapchain owns the surface, so it must go before the instance. */
     delete swapchain;
     swapchain = nullptr;
+    if (debugMessenger != VK_NULL_HANDLE) {
+        auto destroy = (PFN_vkDestroyDebugUtilsMessengerEXT)
+            vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT");
+        if (destroy != nullptr) {
+            destroy(instance, debugMessenger, nullptr);
+        }
+        debugMessenger = VK_NULL_HANDLE;
+    }
     if (allocator != VK_NULL_HANDLE) { vmaDestroyAllocator(allocator); }
     if (device != VK_NULL_HANDLE)    { vkDestroyDevice(device, nullptr); }
     if (instance != VK_NULL_HANDLE)  { vkDestroyInstance(instance, nullptr); }

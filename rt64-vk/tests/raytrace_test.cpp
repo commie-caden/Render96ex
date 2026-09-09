@@ -238,7 +238,7 @@ int main(int argc, char **argv) {
     RT64::ShaderLibraryVK shaders;
     VkShaderModule rtModule = VK_NULL_HANDLE;
     {
-        const std::string path = shaderDir + "/TestRayGen.spv";
+        const std::string path = shaderDir + "/TestRayTracing.spv";
         std::FILE *f = std::fopen(path.c_str(), "rb");
         if (!f) {
             std::fprintf(stderr, "  cannot open %s\n", path.c_str());

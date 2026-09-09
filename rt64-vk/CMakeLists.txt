@@ -39,6 +39,7 @@ if(RT64_BUILD_STUB)
         src/vulkan/rt64_descriptor_layout_vk.cpp
         src/vulkan/rt64_texture_vk.cpp
         src/vulkan/rt64_scene_vk.cpp
+        src/vulkan/rt64_view_vk.cpp
         src/vulkan/rt64_vma_impl.cpp
     )
 else()
@@ -92,6 +93,7 @@ target_include_directories(rt64
     PUBLIC  ${RT64_PUBLIC_INCLUDE}
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
             ${CMAKE_CURRENT_SOURCE_DIR}/src/vulkan
+            ${CMAKE_BINARY_DIR}/generated
 )
 target_include_directories(rt64 SYSTEM PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/contrib/vma
@@ -203,6 +205,17 @@ target_link_libraries(rt64_raster_test PRIVATE rt64 Vulkan::Vulkan PkgConfig::SD
 if(RT64_BUILD_SHADERS)
     add_dependencies(rt64_raster_test rt64_shaders)
 endif()
+
+# View render targets and the ray tracing descriptor set. Headless.
+add_executable(rt64_view_test tests/view_test.cpp)
+target_include_directories(rt64_view_test PRIVATE
+    ${RT64_PUBLIC_INCLUDE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/vulkan
+    ${CMAKE_BINARY_DIR}/generated)
+target_include_directories(rt64_view_test SYSTEM PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/contrib/vma)
+target_link_libraries(rt64_view_test PRIVATE rt64 Vulkan::Vulkan PkgConfig::SDL2)
+add_dependencies(rt64_view_test rt64_bindings)
 
 # Scenes, instances and TLAS building through the C ABI. Headless.
 add_executable(rt64_scene_test tests/scene_test.cpp)

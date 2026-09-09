@@ -55,6 +55,11 @@ public:
     getAccelerationStructureProperties() const { return asProperties; }
 
     void setValidationEnabled(bool enabled) { validationEnabled = enabled; }
+    /* Validation messages are counted rather than merely printed, so tests can
+       assert on them instead of relying on someone reading stderr. */
+    uint32_t getValidationErrorCount() const { return validationErrors; }
+    uint32_t getValidationWarningCount() const { return validationWarnings; }
+    void resetValidationCounters() { validationErrors = 0; validationWarnings = 0; }
     void addInstanceExtension(const char *name) {
         instanceExtensions.push_back(name);
     }
@@ -81,6 +86,18 @@ private:
     uint32_t apiVersion     = 0;
     void    *windowHandle   = nullptr;
     bool     validationEnabled = false;
+    VkDebugUtilsMessengerEXT debugMessenger = VK_NULL_HANDLE;
+    mutable uint32_t validationErrors = 0;
+    mutable uint32_t validationWarnings = 0;
+
+public:
+    /* Called from the debug callback; public only for that reason. */
+    void recordValidationMessage(bool isError) const {
+        if (isError) { validationErrors++; } else { validationWarnings++; }
+    }
+
+private:
+    bool createDebugMessenger(std::string &error);
 
     VkPhysicalDeviceProperties deviceProperties = {};
     VkPhysicalDeviceRayTracingPipelinePropertiesKHR rtProperties = {};
