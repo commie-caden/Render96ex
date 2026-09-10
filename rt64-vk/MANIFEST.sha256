@@ -1,5 +1,5 @@
 b49c1325021679d154cf526ca7dae8eca0b7c4539aef8d577cdd9cebac3cd90c  ../include/rt64/rt64.h
-b1255816f7a8abbff63e66d508bc254e4ab63be51f047483215c6a9905693fa0  ../rt64-vk/CMakeLists.txt
+46989d20c6c72881e0ff762be5316e1c056b341dfc0605c26d281a2b8797fbeb  ../rt64-vk/CMakeLists.txt
 e3428d813a2562154ccda57af3bca2433d8e1151de3b3e9bac93b1274efa71a4  ../rt64-vk/README.md
 34bb733a2cec9bd1fb327f87244a4796c54f1d639a093b2a93f00b74219ba4cb  ../rt64-vk/cmake/CompileShaders.cmake
 8487b7995ad3b263eb73bc5b9a77d71aa69b6bef5d58a715c02d2663afd81f1a  ../rt64-vk/contrib/vma/vk_mem_alloc.h
@@ -55,6 +55,8 @@ b246a2d151167de874b699b66c4c22875f1b1de47e9e3d120db21521a6f0965e  ../rt64-vk/src
 669fb71e2b94c018cf8ec3260b8bea9864407e696bb4f50e789b6511b040be2e  ../rt64-vk/src/shaders/ReflectionRayGen.hlsl
 0ec6541f751529d6f7c77c050f677ec85a0f24dde18bbc9775493c84f9fa8135  ../rt64-vk/src/shaders/RefractionRayGen.hlsl
 db0f9c73b62750d2eb0f42eb2abf7f1f7d23a5e769e01497f4461482cfca6a3e  ../rt64-vk/src/shaders/Textures.hlsli
+5c26394db0a675d3d4d717d24f1b081efb3e64fead0eb68ee1c5d45d5c639640  ../rt64-vk/src/vulkan/rt64_compose_vk.cpp
+6680476ae44d0899826ffe43abdf7c74d364d441b77c85db83d6b04c72d9315f  ../rt64-vk/src/vulkan/rt64_compose_vk.h
 874cf08a93a0b880eeaf622859de5a22f2231a6799944b4d4756165c4c855e7e  ../rt64-vk/src/vulkan/rt64_descriptor_layout_vk.cpp
 1e5042360170bf9c8c5e0b7576a45804d17821a2a75e78773674c35a1befb4b7  ../rt64-vk/src/vulkan/rt64_descriptor_layout_vk.h
 93b2eb6d120c3ce95cad8396c8e1d6b7bff851ed803ccd2f8bc403d300dc341c  ../rt64-vk/src/vulkan/rt64_device_vk.cpp
@@ -90,8 +92,9 @@ c237dc3fd76e26ac2431b9a3b07774c2aaf4678e46cb4781124878e454e5c91b  ../rt64-vk/src
 f14b0dadac2b1d3c4e34d39ea3ae363da8397343a15355e480dc0765482f66eb  ../rt64-vk/tests/mesh_test.cpp
 426c3e02ebbc53d8fed6a09e16384d98f686e8abbbfd71bafa3847980690f35c  ../rt64-vk/tests/payload_test.cpp
 4fe31c404cbcf34cdb5540342c984a8f901ce221e338f07c76121a7303626d94  ../rt64-vk/tests/pipeline_test.cpp
-a1678a800162b3d9f67d8a4f8577e0fd5415e5aed27f18ac5d6bb332279494f5  ../rt64-vk/tests/raster_test.cpp
+31c2480222ab6d9cf44d35ebae6bbf1ec7ac0ef738d5a39e248c0c16b1cb20c2  ../rt64-vk/tests/raster_test.cpp
 50820c1f8c38f501edb127de2d0e3b324a93c98a2661a42d65d47fbcd45bc3e1  ../rt64-vk/tests/raytrace_test.cpp
+d60316b9b0107e0661b1ba224d37bc13b94b6b3fe5957066e0df90b619ec4287  ../rt64-vk/tests/render_test.cpp
 29aac301f864851135f9f4bb22108d978bc04c2b45ed9de9bdcc2c2ac5841b0a  ../rt64-vk/tests/scene_test.cpp
 b90d8d531f3a0f517e9090329501f26c6f5dbab5caf40198c821692e3e900307  ../rt64-vk/tests/shader_test.cpp
 aecc0410873c8c32ee98a28ccdc6b2ae5ceecb0691915f245a65d2ee92b1a197  ../rt64-vk/tests/shadergen_test.cpp

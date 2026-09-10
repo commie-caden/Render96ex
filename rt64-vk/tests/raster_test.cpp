@@ -592,9 +592,12 @@ int main(int argc, char **argv) {
         rendering.pColorAttachments = &colorAttachment;
         vkCmdBeginRendering(cb, &rendering);
 
+        /* Negative height, matching ComposePass: FullScreenVS was authored for
+           D3D clip space, where +Y is up. */
         VkViewport vp = {};
+        vp.y = (float)swapchain->getExtent().height;
         vp.width = (float)swapchain->getExtent().width;
-        vp.height = (float)swapchain->getExtent().height;
+        vp.height = -(float)swapchain->getExtent().height;
         vp.maxDepth = 1.0f;
         VkRect2D scissor = {};
         scissor.extent = swapchain->getExtent();

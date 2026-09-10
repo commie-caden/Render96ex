@@ -43,6 +43,7 @@ if(RT64_BUILD_STUB)
         src/vulkan/rt64_shader_compiler_vk.cpp
         src/vulkan/rt64_shader_vk.cpp
         src/vulkan/rt64_rt_pipeline_vk.cpp
+        src/vulkan/rt64_compose_vk.cpp
         src/vulkan/rt64_vma_impl.cpp
     )
 else()
@@ -242,6 +243,17 @@ target_link_libraries(rt64_payload_test PRIVATE rt64 Vulkan::Vulkan PkgConfig::S
 if(RT64_BUILD_SHADERS)
     add_dependencies(rt64_payload_test rt64_test_shaders)
 endif()
+
+# The whole pipeline, on screen: trace, compose, present. Needs a GPU.
+add_executable(rt64_render_test tests/render_test.cpp)
+target_include_directories(rt64_render_test PRIVATE
+    ${RT64_PUBLIC_INCLUDE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/vulkan
+    ${CMAKE_BINARY_DIR}/generated)
+target_include_directories(rt64_render_test SYSTEM PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/contrib/vma)
+target_link_libraries(rt64_render_test PRIVATE rt64 Vulkan::Vulkan PkgConfig::SDL2 ${CMAKE_DL_LIBS})
+add_dependencies(rt64_render_test rt64_bindings)
 
 # The five ray passes, dispatched. Needs a GPU.
 add_executable(rt64_dispatch_test tests/dispatch_test.cpp)
