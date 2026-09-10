@@ -351,20 +351,10 @@ int main(int argc, char **argv) {
             std::printf("        gHitColor:        %6zu / %zu with alpha>0, "
                         "%zu with colour\n", opaque, count, anyColor);
             opaqueHits = opaque;
-            if (opaque > 0) {
-                std::printf("          -> anyhit produced opaque hits; the loss "
-                            "is between anyhit and raygen (payload.nhits)\n");
-            } else {
+            if (opaque == 0) {
                 std::printf("          -> anyhit produced zero alpha; the "
                             "combiner or material path is at fault\n");
             }
-        }
-
-        if (opaqueHits > 0) {
-            std::printf("\n        The anyhit produced correct data, so the\n"
-                        "        remaining question is whether payload writes\n"
-                        "        survive IgnoreHit(). Run rt64_payload_test to\n"
-                        "        answer that in isolation.\n\n");
         }
 
         std::vector<uint8_t> pixels;
@@ -393,8 +383,11 @@ int main(int argc, char **argv) {
     vkDestroyCommandPool(device.getDevice(), pool, nullptr);
     pipeline.destroy(&device);
     builder.shutdown();
-    std::printf("  %s\n", failures == 0
-                ? "PrimaryRayGen and all four secondary passes dispatched"
-                : "SOME CHECKS FAILED");
+    if (failures == 0) {
+        std::printf("  RT64 renders: rays traced, hits shaded, G-buffer "
+                    "written\n");
+    } else {
+        std::printf("  SOME CHECKS FAILED\n");
+    }
     return failures == 0 ? 0 : 1;
 }
