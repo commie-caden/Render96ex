@@ -86,7 +86,7 @@ c237dc3fd76e26ac2431b9a3b07774c2aaf4678e46cb4781124878e454e5c91b  ../rt64-vk/src
 41801ad3642aec2d27f05275a37e9819836a7261810f4cda6d52c9aba3837fb7  ../rt64-vk/tests/compiler_test.cpp
 2981d5186beaeb57f4444996cfe2e133f4f372dab195885547435c6aed875073  ../rt64-vk/tests/descriptor_test.cpp
 70a70b9f2a41f327f2e13019bf5cbd60e9c0b8e7aadfea7d9fb831a988aaa972  ../rt64-vk/tests/device_info.cpp
-989acd705d21eacfa4371e5b5b195fe1afd7e78e0e3350fd10db7b21ef9fc135  ../rt64-vk/tests/dispatch_test.cpp
+fe1c194f876a596dd688a4d56aa28d3b5bb8e663ccec1a116b26711f58046d9e  ../rt64-vk/tests/dispatch_test.cpp
 f14b0dadac2b1d3c4e34d39ea3ae363da8397343a15355e480dc0765482f66eb  ../rt64-vk/tests/mesh_test.cpp
 426c3e02ebbc53d8fed6a09e16384d98f686e8abbbfd71bafa3847980690f35c  ../rt64-vk/tests/payload_test.cpp
 4fe31c404cbcf34cdb5540342c984a8f901ce221e338f07c76121a7303626d94  ../rt64-vk/tests/pipeline_test.cpp

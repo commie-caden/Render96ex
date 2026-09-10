@@ -98,7 +98,17 @@ int main(int argc, char **argv) {
     desc.material.selfLight = { 1.0f, 1.0f, 1.0f };
     desc.material.specularColor = { 1.0f, 1.0f, 1.0f };
     desc.material.specularExponent = 1.0f;
-    desc.material.lightGroupMaskBits = 0;   /* self-lit, no lighting needed */
+    /* Non-zero, and this is load-bearing. PrimaryRayGen only marks a hit as
+       the primary one when storeHit becomes true, and the paths that set it
+       are lighting, reflection and transparency:
+
+           bool usesLighting  = (lightGroupMaskBits > 0);
+           bool applyLighting = usesLighting && (hitColor.a > MINIMUM_ALPHA);
+
+       With lightGroupMaskBits at 0 and no reflection, a perfectly good opaque
+       hit is recorded into the hit buffers and then never stored, leaving
+       resInstanceId at -1. */
+    desc.material.lightGroupMaskBits = 0xFFFF;
     desc.material.diffuseTexIndex = -1;
     desc.material.normalTexIndex = -1;
     desc.material.specularTexIndex = -1;
