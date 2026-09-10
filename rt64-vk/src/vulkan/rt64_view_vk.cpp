@@ -6,6 +6,7 @@
 #include "rt64_shader_bindings.h"
 #include "rt64_descriptor_layout_vk.h"
 
+#include <cmath>
 #include <cstring>
 
 namespace RT64 {
@@ -151,7 +152,9 @@ bool ViewVK::createTexelBuffer(RenderTarget &target, std::string &error) {
 
     if (!createBuffer(device->getAllocator(), device->getDevice(), bytes,
                       VK_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT |
-                      VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+                      VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
+                      VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
+                      VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                       false, target.buffer, error)) {
         return false;
     }
@@ -384,6 +387,302 @@ uint64_t ViewVK::totalBytes() const {
     return total;
 }
 
+namespace {
+
+/* Row-vector convention throughout, matching DirectXMath: v' = v * M, and
+   multiply(A, B) is XMMatrixMultiply(A, B). */
+void multiply4x4(const float *a, const float *b, float *out) {
+    for (int r = 0; r < 4; r++) {
+        for (int c = 0; c < 4; c++) {
+            out[r * 4 + c] = a[r * 4 + 0] * b[0 * 4 + c] +
+                             a[r * 4 + 1] * b[1 * 4 + c] +
+                             a[r * 4 + 2] * b[2 * 4 + c] +
+                             a[r * 4 + 3] * b[3 * 4 + c];
+        }
+    }
+}
+
+/* General cofactor inverse. PrimaryRayGen derives the ray origin and direction
+   from viewI and projectionI, so these are not optional extras — a zeroed
+   inverse produces rays with zero origin and zero direction, which hit nothing
+   while reporting no error at all. */
+bool invert4x4(const float *m, float *out) {
+    float inv[16];
+    inv[0]  =  m[5]*m[10]*m[15] - m[5]*m[11]*m[14] - m[9]*m[6]*m[15] + m[9]*m[7]*m[14] + m[13]*m[6]*m[11] - m[13]*m[7]*m[10];
+    inv[4]  = -m[4]*m[10]*m[15] + m[4]*m[11]*m[14] + m[8]*m[6]*m[15] - m[8]*m[7]*m[14] - m[12]*m[6]*m[11] + m[12]*m[7]*m[10];
+    inv[8]  =  m[4]*m[9]*m[15]  - m[4]*m[11]*m[13] - m[8]*m[5]*m[15] + m[8]*m[7]*m[13] + m[12]*m[5]*m[11] - m[12]*m[7]*m[9];
+    inv[12] = -m[4]*m[9]*m[14]  + m[4]*m[10]*m[13] + m[8]*m[5]*m[14] - m[8]*m[6]*m[13] - m[12]*m[5]*m[10] + m[12]*m[6]*m[9];
+    inv[1]  = -m[1]*m[10]*m[15] + m[1]*m[11]*m[14] + m[9]*m[2]*m[15] - m[9]*m[3]*m[14] - m[13]*m[2]*m[11] + m[13]*m[3]*m[10];
+    inv[5]  =  m[0]*m[10]*m[15] - m[0]*m[11]*m[14] - m[8]*m[2]*m[15] + m[8]*m[3]*m[14] + m[12]*m[2]*m[11] - m[12]*m[3]*m[10];
+    inv[9]  = -m[0]*m[9]*m[15]  + m[0]*m[11]*m[13] + m[8]*m[1]*m[15] - m[8]*m[3]*m[13] - m[12]*m[1]*m[11] + m[12]*m[3]*m[9];
+    inv[13] =  m[0]*m[9]*m[14]  - m[0]*m[10]*m[13] - m[8]*m[1]*m[14] + m[8]*m[2]*m[13] + m[12]*m[1]*m[10] - m[12]*m[2]*m[9];
+    inv[2]  =  m[1]*m[6]*m[15]  - m[1]*m[7]*m[14]  - m[5]*m[2]*m[15] + m[5]*m[3]*m[14] + m[13]*m[2]*m[7]  - m[13]*m[3]*m[6];
+    inv[6]  = -m[0]*m[6]*m[15]  + m[0]*m[7]*m[14]  + m[4]*m[2]*m[15] - m[4]*m[3]*m[14] - m[12]*m[2]*m[7]  + m[12]*m[3]*m[6];
+    inv[10] =  m[0]*m[5]*m[15]  - m[0]*m[7]*m[13]  - m[4]*m[1]*m[15] + m[4]*m[3]*m[13] + m[12]*m[1]*m[7]  - m[12]*m[3]*m[5];
+    inv[14] = -m[0]*m[5]*m[14]  + m[0]*m[6]*m[13]  + m[4]*m[1]*m[14] - m[4]*m[2]*m[13] - m[12]*m[1]*m[6]  + m[12]*m[2]*m[5];
+    inv[3]  = -m[1]*m[6]*m[11]  + m[1]*m[7]*m[10]  + m[5]*m[2]*m[11] - m[5]*m[3]*m[10] - m[9]*m[2]*m[7]   + m[9]*m[3]*m[6];
+    inv[7]  =  m[0]*m[6]*m[11]  - m[0]*m[7]*m[10]  - m[4]*m[2]*m[11] + m[4]*m[3]*m[10] + m[8]*m[2]*m[7]   - m[8]*m[3]*m[6];
+    inv[11] = -m[0]*m[5]*m[11]  + m[0]*m[7]*m[9]   + m[4]*m[1]*m[11] - m[4]*m[3]*m[9]  - m[8]*m[1]*m[7]   + m[8]*m[3]*m[5];
+    inv[15] =  m[0]*m[5]*m[10]  - m[0]*m[6]*m[9]   - m[4]*m[1]*m[10] + m[4]*m[2]*m[9]  + m[8]*m[1]*m[6]   - m[8]*m[2]*m[5];
+
+    float det = m[0]*inv[0] + m[1]*inv[4] + m[2]*inv[8] + m[3]*inv[12];
+    if (std::fabs(det) < 1e-12f) {
+        return false;
+    }
+    det = 1.0f / det;
+    for (int i = 0; i < 16; i++) {
+        out[i] = inv[i] * det;
+    }
+    return true;
+}
+
+/* XMMatrixPerspectiveFovRH, written out. */
+void perspectiveFovRH(float fovRadians, float aspect, float nearZ, float farZ,
+                      float *out) {
+    const float h = std::cos(fovRadians * 0.5f) / std::sin(fovRadians * 0.5f);
+    const float w = h / aspect;
+    const float range = farZ / (nearZ - farZ);
+    for (int i = 0; i < 16; i++) { out[i] = 0.0f; }
+    out[0] = w;
+    out[5] = h;
+    out[10] = range;
+    out[11] = -1.0f;
+    out[14] = range * nearZ;
+}
+
+} /* namespace */
+
+void ViewVK::setCamera(const float viewMatrix[16],
+                       const float projectionMatrix[16], float fovRadians,
+                       float nearDist, float farDist) {
+    GlobalParams params = {};
+    std::memcpy(params.view, viewMatrix, sizeof(params.view));
+
+    const float aspect = (height > 0) ? (float)width / (float)height : 1.0f;
+    if (projectionMatrix != nullptr) {
+        std::memcpy(params.projection, projectionMatrix, sizeof(params.projection));
+    } else {
+        perspectiveFovRH(fovRadians, aspect, nearDist, farDist, params.projection);
+    }
+
+    /* These are what the rays are actually built from. */
+    invert4x4(params.view, params.viewI);
+    invert4x4(params.projection, params.projectionI);
+    multiply4x4(params.view, params.projection, params.viewProj);
+    std::memcpy(params.prevViewI, params.viewI, sizeof(params.prevViewI));
+    std::memcpy(params.prevViewProj, params.viewProj, sizeof(params.prevViewProj));
+
+    params.resolution[0] = (float)width;
+    params.resolution[1] = (float)height;
+    params.resolution[2] = 1.0f / (float)width;
+    params.resolution[3] = 1.0f / (float)height;
+    params.viewport[2] = (float)width;
+    params.viewport[3] = (float)height;
+
+    /* The pinhole basis, used for ray differentials rather than for the rays
+       themselves. Derived exactly as the original does: position and forward
+       come out of the inverse view, with a focal distance at the midpoint of
+       the near and far planes. */
+    const float focal = (nearDist + farDist) * 0.5f;
+    const float posX = params.viewI[12];
+    const float posY = params.viewI[13];
+    const float posZ = params.viewI[14];
+    (void)posX; (void)posY; (void)posZ;
+    /* Forward is the third row of the inverse view, negated for right-handed. */
+    float fwd[3] = { -params.viewI[8], -params.viewI[9], -params.viewI[10] };
+    const float fwdLen = std::sqrt(fwd[0]*fwd[0] + fwd[1]*fwd[1] + fwd[2]*fwd[2]);
+    if (fwdLen > 1e-6f) {
+        fwd[0] /= fwdLen; fwd[1] /= fwdLen; fwd[2] /= fwdLen;
+    }
+    const float up[3] = { 0.0f, 1.0f, 0.0f };
+    float camW[3] = { fwd[0] * focal, fwd[1] * focal, fwd[2] * focal };
+    float camU[3] = { camW[1]*up[2] - camW[2]*up[1],
+                      camW[2]*up[0] - camW[0]*up[2],
+                      camW[0]*up[1] - camW[1]*up[0] };
+    float uLen = std::sqrt(camU[0]*camU[0] + camU[1]*camU[1] + camU[2]*camU[2]);
+    if (uLen > 1e-6f) { camU[0] /= uLen; camU[1] /= uLen; camU[2] /= uLen; }
+    float camV[3] = { camU[1]*camW[2] - camU[2]*camW[1],
+                      camU[2]*camW[0] - camU[0]*camW[2],
+                      camU[0]*camW[1] - camU[1]*camW[0] };
+    float vLen = std::sqrt(camV[0]*camV[0] + camV[1]*camV[1] + camV[2]*camV[2]);
+    if (vLen > 1e-6f) { camV[0] /= vLen; camV[1] /= vLen; camV[2] /= vLen; }
+    const float vScale = focal * std::tan(fovRadians * 0.5f);
+    const float uScale = vScale * aspect;
+    for (int i = 0; i < 3; i++) {
+        params.cameraU[i] = camU[i] * uScale;
+        params.cameraV[i] = camV[i] * vScale;
+        params.cameraW[i] = camW[i];
+    }
+
+    params.diSamples = 1;
+    params.giSamples = 1;
+    params.maxLights = 1;
+    params.skyPlaneTexIndex = -1;
+    params.frameCount = 1;
+
+    std::memcpy(paramsBuffer.mapped, &params, sizeof(params));
+}
+
+bool ViewVK::readTarget(const std::string &name, std::vector<uint8_t> &out,
+                        std::string &error) {
+    const RenderTarget *target = findTarget(name);
+    if (target == nullptr || target->image == VK_NULL_HANDLE) {
+        error = name + " is not a storage image target";
+        return false;
+    }
+    VkDevice vk = device->getDevice();
+    VmaAllocator allocator = device->getAllocator();
+
+    uint32_t bytesPerPixel = 4;
+    switch (target->format) {
+        case VK_FORMAT_R32G32B32A32_SFLOAT: bytesPerPixel = 16; break;
+        case VK_FORMAT_R32G32_SFLOAT:       bytesPerPixel = 8;  break;
+        default:                            bytesPerPixel = 4;  break;
+    }
+    const VkDeviceSize bytes = (VkDeviceSize)width * height * bytesPerPixel;
+
+    BufferVK staging;
+    if (!createBuffer(allocator, vk, bytes, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                      true, staging, error)) {
+        return false;
+    }
+
+    VkCommandPoolCreateInfo cpInfo = {};
+    cpInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    cpInfo.queueFamilyIndex = device->getGraphicsFamily();
+    VkCommandPool tempPool = VK_NULL_HANDLE;
+    vkCreateCommandPool(vk, &cpInfo, nullptr, &tempPool);
+    VkCommandBufferAllocateInfo cbInfo = {};
+    cbInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    cbInfo.commandPool = tempPool;
+    cbInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    cbInfo.commandBufferCount = 1;
+    VkCommandBuffer cmd = VK_NULL_HANDLE;
+    vkAllocateCommandBuffers(vk, &cbInfo, &cmd);
+    VkCommandBufferBeginInfo begin = {};
+    begin.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    vkBeginCommandBuffer(cmd, &begin);
+
+    /* The image stays in GENERAL — it is still a storage image, and GENERAL is
+       a legal transfer source, so no layout change is needed. */
+    VkImageMemoryBarrier b = {};
+    b.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    b.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    b.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    b.image = target->image;
+    b.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+    b.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+    b.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+    b.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+    b.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,
+                         VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0,
+                         nullptr, 1, &b);
+
+    VkBufferImageCopy copy = {};
+    copy.imageSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
+    copy.imageExtent = { width, height, 1 };
+    vkCmdCopyImageToBuffer(cmd, target->image, VK_IMAGE_LAYOUT_GENERAL,
+                           staging.buffer, 1, &copy);
+    vkEndCommandBuffer(cmd);
+
+    VkSubmitInfo submit = {};
+    submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submit.commandBufferCount = 1;
+    submit.pCommandBuffers = &cmd;
+    vkQueueSubmit(device->getGraphicsQueue(), 1, &submit, VK_NULL_HANDLE);
+    vkQueueWaitIdle(device->getGraphicsQueue());
+
+    out.resize((size_t)bytes);
+    std::memcpy(out.data(), staging.mapped, (size_t)bytes);
+    staging.destroy(allocator);
+    vkDestroyCommandPool(vk, tempPool, nullptr);
+    return true;
+}
+
+bool ViewVK::readHitLayer(const std::string &name, uint32_t layer,
+                          std::vector<uint8_t> &out, std::string &error) {
+    const RenderTarget *target = findTarget(name);
+    if (target == nullptr || target->buffer.buffer == VK_NULL_HANDLE) {
+        error = name + " is not a texel buffer target";
+        return false;
+    }
+    if (layer >= RT64_HIT_LAYERS) {
+        error = "hit layer out of range";
+        return false;
+    }
+    uint32_t elementBytes = 4;
+    switch (target->format) {
+        case VK_FORMAT_R32G32B32A32_SFLOAT: elementBytes = 16; break;
+        case VK_FORMAT_R16G16B16A16_SNORM:  elementBytes = 8;  break;
+        case VK_FORMAT_R16_UINT:            elementBytes = 2;  break;
+        default:                            elementBytes = 4;  break;
+    }
+    /* getHitBufferIndex is (layer * height + y) * width + x, so a layer is a
+       contiguous width*height run. */
+    const VkDeviceSize layerElements = (VkDeviceSize)width * height;
+    const VkDeviceSize bytes = layerElements * elementBytes;
+    const VkDeviceSize offset = (VkDeviceSize)layer * bytes;
+
+    VkDevice vk = device->getDevice();
+    VmaAllocator allocator = device->getAllocator();
+    BufferVK staging;
+    if (!createBuffer(allocator, vk, bytes, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                      true, staging, error)) {
+        return false;
+    }
+
+    VkCommandPoolCreateInfo cpInfo = {};
+    cpInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    cpInfo.queueFamilyIndex = device->getGraphicsFamily();
+    VkCommandPool tempPool = VK_NULL_HANDLE;
+    vkCreateCommandPool(vk, &cpInfo, nullptr, &tempPool);
+    VkCommandBufferAllocateInfo cbInfo = {};
+    cbInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    cbInfo.commandPool = tempPool;
+    cbInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    cbInfo.commandBufferCount = 1;
+    VkCommandBuffer cmd = VK_NULL_HANDLE;
+    vkAllocateCommandBuffers(vk, &cbInfo, &cmd);
+    VkCommandBufferBeginInfo begin = {};
+    begin.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    vkBeginCommandBuffer(cmd, &begin);
+
+    VkBufferMemoryBarrier b = {};
+    b.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+    b.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    b.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    b.buffer = target->buffer.buffer;
+    b.offset = 0;
+    b.size = VK_WHOLE_SIZE;
+    b.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+    b.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,
+                         VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr,
+                         1, &b, 0, nullptr);
+
+    VkBufferCopy copy = {};
+    copy.srcOffset = offset;
+    copy.size = bytes;
+    vkCmdCopyBuffer(cmd, target->buffer.buffer, staging.buffer, 1, &copy);
+    vkEndCommandBuffer(cmd);
+
+    VkSubmitInfo submit = {};
+    submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submit.commandBufferCount = 1;
+    submit.pCommandBuffers = &cmd;
+    vkQueueSubmit(device->getGraphicsQueue(), 1, &submit, VK_NULL_HANDLE);
+    vkQueueWaitIdle(device->getGraphicsQueue());
+
+    out.resize((size_t)bytes);
+    std::memcpy(out.data(), staging.mapped, (size_t)bytes);
+    staging.destroy(allocator);
+    vkDestroyCommandPool(vk, tempPool, nullptr);
+    return true;
+}
+
 void ViewVK::transitionTargets(VkCommandBuffer cmd) {
     /* Storage images are read and written in GENERAL. D3D12 would have
        promoted the state implicitly; Vulkan needs it spelled out, and a
@@ -406,13 +705,29 @@ void ViewVK::transitionTargets(VkCommandBuffer cmd) {
         b.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
         barriers.push_back(b);
     }
-    if (barriers.empty()) {
-        return;
+    if (!barriers.empty()) {
+        vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                             VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, 0,
+                             0, nullptr, 0, nullptr,
+                             (uint32_t)barriers.size(), barriers.data());
     }
-    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+
+    /* Zero the hit buffers. Freshly allocated device memory has undefined
+       contents, and a stale non-zero distance is indistinguishable from a real
+       intersection when reading these back. */
+    for (const RenderTarget &t : targets) {
+        if (t.buffer.buffer == VK_NULL_HANDLE) {
+            continue;
+        }
+        vkCmdFillBuffer(cmd, t.buffer.buffer, 0, VK_WHOLE_SIZE, 0);
+    }
+    VkMemoryBarrier cleared = {};
+    cleared.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+    cleared.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    cleared.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT,
                          VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, 0,
-                         0, nullptr, 0, nullptr,
-                         (uint32_t)barriers.size(), barriers.data());
+                         1, &cleared, 0, nullptr, 0, nullptr);
 }
 
 void ViewVK::dispatchRayPasses(VkCommandBuffer cmd,
@@ -551,8 +866,12 @@ bool ViewVK::updateDescriptorSet(VkDescriptorSetLayout layout,
                 if (std::strcmp(b.name, "SceneLights") == 0 &&
                     scene->getLightBuffer() != VK_NULL_HANDLE) {
                     buffer = scene->getLightBuffer();
-                } else if (std::strcmp(b.name, "instanceMaterials") == 0) {
-                    buffer = instanceMaterials.buffer;
+                } else if (std::strcmp(b.name, "instanceMaterials") == 0 &&
+                           scene->getMaterialBuffer() != VK_NULL_HANDLE) {
+                    buffer = scene->getMaterialBuffer();
+                } else if (std::strcmp(b.name, "instanceTransforms") == 0 &&
+                           scene->getTransformBuffer() != VK_NULL_HANDLE) {
+                    buffer = scene->getTransformBuffer();
                 }
                 bufferInfos.push_back({ buffer, 0, VK_WHOLE_SIZE });
                 write.pBufferInfo = &bufferInfos.back();

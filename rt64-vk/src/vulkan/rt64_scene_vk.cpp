@@ -52,6 +52,8 @@ SceneVK::~SceneVK() {
     tlas.destroy(builder->functions(), device->getDevice(),
                  device->getAllocator());
     lightBuffer.destroy(device->getAllocator());
+    transformBuffer.destroy(device->getAllocator());
+    materialBuffer.destroy(device->getAllocator());
 }
 
 void SceneVK::addInstance(InstanceVK *instance) {
@@ -92,6 +94,71 @@ bool SceneVK::setLights(const RT64_LIGHT *lights, int count,
         lightCapacity = count;
     }
     std::memcpy(lightBuffer.mapped, lights, sizeof(RT64_LIGHT) * (size_t)count);
+    return true;
+}
+
+bool SceneVK::updateInstanceBuffers(std::string &error) {
+    /* Must match InstanceTransforms in Instances.hlsli: three 4x4 matrices. */
+    struct InstanceTransforms {
+        float objectToWorld[16];
+        float objectToWorldNormal[16];
+        float objectToWorldPrevious[16];
+    };
+
+    std::vector<InstanceTransforms> transforms;
+    std::vector<RT64_MATERIAL> materials;
+    transforms.reserve(instances.size());
+    materials.reserve(instances.size());
+
+    /* Order must match the order updateTopLevel assigns instance indices in,
+       since the shaders index both by InstanceIndex(). */
+    for (InstanceVK *instance : instances) {
+        const RT64_INSTANCE_DESC &desc = instance->getDescription();
+        if (desc.mesh == nullptr) {
+            continue;
+        }
+        MeshVK *mesh = (MeshVK *)desc.mesh;
+        if (mesh->accelerationStructure().handle == VK_NULL_HANDLE) {
+            continue;
+        }
+
+        InstanceTransforms t = {};
+        std::memcpy(t.objectToWorld, desc.transform.m, sizeof(t.objectToWorld));
+        /* The original passes the same matrix for the normal transform; it is
+           correct for the rigid transforms SM64 uses. */
+        std::memcpy(t.objectToWorldNormal, desc.transform.m,
+                    sizeof(t.objectToWorldNormal));
+        std::memcpy(t.objectToWorldPrevious, desc.previousTransform.m,
+                    sizeof(t.objectToWorldPrevious));
+        transforms.push_back(t);
+        materials.push_back(desc.material);
+    }
+
+    packedInstances = (uint32_t)transforms.size();
+    if (packedInstances == 0) {
+        return true;
+    }
+
+    if (packedInstances > transformCapacity) {
+        transformBuffer.destroy(device->getAllocator());
+        materialBuffer.destroy(device->getAllocator());
+        const VkBufferUsageFlags usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+                                         VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+        if (!createBuffer(device->getAllocator(), device->getDevice(),
+                          sizeof(InstanceTransforms) * packedInstances, usage,
+                          true, transformBuffer, error) ||
+            !createBuffer(device->getAllocator(), device->getDevice(),
+                          sizeof(RT64_MATERIAL) * packedInstances, usage,
+                          true, materialBuffer, error)) {
+            return false;
+        }
+        transformCapacity = packedInstances;
+    }
+
+    std::memcpy(transformBuffer.mapped, transforms.data(),
+                sizeof(InstanceTransforms) * packedInstances);
+    std::memcpy(materialBuffer.mapped, materials.data(),
+                sizeof(RT64_MATERIAL) * packedInstances);
     return true;
 }
 

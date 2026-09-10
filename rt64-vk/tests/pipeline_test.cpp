@@ -171,6 +171,13 @@ int main(int argc, char **argv) {
                "each pass addresses its own raygen record");
         expect(a.size == a.stride,
                "raygen region size equals its stride, as the spec requires");
+        /* Every region's base address, not just its size, must meet
+           shaderGroupBaseAlignment. Aligning sizes within a buffer whose own
+           address is under-aligned leaves all three regions misaligned. */
+        expect((sbt.raygenRegion(0).deviceAddress % sbt.baseAlignment) == 0 &&
+               (sbt.missRegion().deviceAddress % sbt.baseAlignment) == 0 &&
+               (sbt.hitRegion().deviceAddress % sbt.baseAlignment) == 0,
+               "all three region addresses meet shaderGroupBaseAlignment");
         expect(sbt.missRegion().size == 2 * sbt.missRegion().stride,
                "miss region holds both miss shaders");
         expect(sbt.hitRegion().size == 6 * sbt.hitRegion().stride,

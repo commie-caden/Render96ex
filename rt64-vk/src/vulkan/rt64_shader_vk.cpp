@@ -177,8 +177,15 @@ void incMeshBuffers(std::stringstream &ss) {
 	SS("float4 rt64LoadVertexFloat4(uint o) { return float4(rt64LoadVertexFloat(o), rt64LoadVertexFloat(o + 4), rt64LoadVertexFloat(o + 8), rt64LoadVertexFloat(o + 12)); }");
 }
 
-void getVertexData(std::stringstream &ss, bool vertexPosition, bool vertexNormal, bool vertexUV, int inputCount, bool useAlpha, bool vertexBinormalAndTangent) {
+void getVertexData(std::stringstream &ss, bool vertexPosition, bool vertexNormal, bool vertexUV, int inputCount, bool useAlpha, bool vertexBinormalAndTangent, VertexLayout *outLayout) {
 	VertexLayout vl(vertexPosition, vertexNormal, vertexUV, inputCount, useAlpha);
+	/* The hit groups read the same vertex data the raster path does, so the
+	   layout must be available even for a raytrace-only shader. Capturing it
+	   only in generateRasterGroup left RT64_SHADER_RAYTRACE_ENABLED on its own
+	   reporting a stride of zero. */
+	if (outLayout != nullptr) {
+		*outLayout = vl;
+	}
 
 	SS("uint3 index3 = rt64LoadIndex3((triangleIndex * 3) * 4);");
 
@@ -422,6 +429,7 @@ void RT64::ShaderVK::generateRasterGroup(unsigned int shaderId, Filter filter, A
 	   for the pipeline builder to translate. Discarding it would lose the
 	   offsets, which are derived from the colour combiner and not recoverable
 	   later. */
+	recordVertexStride((uint32_t)vl.vertexSize);
 	rasterGroup.attributes.clear();
 	rasterGroup.attributes.push_back({ VertexAttribute::Position,
 		(uint32_t)vl.positionOffset, 4 });
@@ -440,6 +448,7 @@ void RT64::ShaderVK::generateRasterGroup(unsigned int shaderId, Filter filter, A
 }
 
 void RT64::ShaderVK::generateSurfaceHitGroup(unsigned int shaderId, Filter filter, AddressingMode hAddr, AddressingMode vAddr, bool normalMapEnabled, bool specularMapEnabled, const std::string &hitGroupName, const std::string &closestHitName, const std::string &anyHitName) {
+	VertexLayout capturedLayout(true, true, false, 0, false);
 	ColorCombinerParams cc(shaderId);
 
 	std::stringstream ss;
@@ -466,7 +475,7 @@ void RT64::ShaderVK::generateSurfaceHitGroup(unsigned int shaderId, Filter filte
 	SS("    float4 diffuseColorMix = instanceMaterials[instanceId].diffuseColorMix;");
 
 	bool vertexUV = cc.useTextures[0] || cc.useTextures[1];
-	getVertexData(ss, true, true, vertexUV, cc.inputCount, cc.opt_alpha, vertexUV && normalMapEnabled);
+	getVertexData(ss, true, true, vertexUV, cc.inputCount, cc.opt_alpha, vertexUV && normalMapEnabled, &capturedLayout);
 
 	if (cc.useTextures[0]) {
 		SS("	float2 ddx, ddy;");
@@ -588,6 +597,7 @@ void RT64::ShaderVK::generateSurfaceHitGroup(unsigned int shaderId, Filter filte
 		if (f) { fwrite(shaderCode.data(), 1, shaderCode.size(), f); fclose(f); }
 	}
 #endif
+	recordVertexStride((uint32_t)capturedLayout.vertexSize);
 	compileShaderCode(shaderCode, "", "lib_6_3", surfaceHitGroup.spirv);
 	surfaceHitGroup.hitGroupName = hitGroupName;
 	surfaceHitGroup.closestHitName = closestHitName;
@@ -595,6 +605,7 @@ void RT64::ShaderVK::generateSurfaceHitGroup(unsigned int shaderId, Filter filte
 }
 
 void RT64::ShaderVK::generateShadowHitGroup(unsigned int shaderId, Filter filter, AddressingMode hAddr, AddressingMode vAddr, const std::string &hitGroupName, const std::string &closestHitName, const std::string &anyHitName) {
+	VertexLayout capturedLayout(true, true, false, 0, false);
 	ColorCombinerParams cc(shaderId);
 	std::stringstream ss;
 	incMeshBuffers(ss);
@@ -618,7 +629,7 @@ void RT64::ShaderVK::generateShadowHitGroup(unsigned int shaderId, Filter filter
 		SS("    uint triangleIndex = PrimitiveIndex();");
 		SS("    float3 barycentrics = float3((1.0f - attrib.bary.x - attrib.bary.y), attrib.bary.x, attrib.bary.y);");
 
-		getVertexData(ss, true, true, cc.useTextures[0] || cc.useTextures[1], cc.inputCount, cc.opt_alpha, false);
+		getVertexData(ss, true, true, cc.useTextures[0] || cc.useTextures[1], cc.inputCount, cc.opt_alpha, false, &capturedLayout);
 
 		if (cc.useTextures[0]) {
 			SS("    int diffuseTexIndex = instanceMaterials[instanceId].diffuseTexIndex;");
@@ -669,10 +680,19 @@ void RT64::ShaderVK::generateShadowHitGroup(unsigned int shaderId, Filter filter
 
 	// Compile shader.
 	std::string shaderCode = ss.str();
+	recordVertexStride((uint32_t)capturedLayout.vertexSize);
 	compileShaderCode(shaderCode, "", "lib_6_3", shadowHitGroup.spirv);
 	shadowHitGroup.hitGroupName = hitGroupName;
 	shadowHitGroup.closestHitName = closestHitName;
 	shadowHitGroup.anyHitName = anyHitName;
+}
+
+void RT64::ShaderVK::recordVertexStride(uint32_t stride) {
+	/* First writer wins: the raster and hit paths compute the same layout for
+	   a given combiner, so whichever runs first is authoritative. */
+	if (rasterGroup.vertexStride == 0) {
+		rasterGroup.vertexStride = stride;
+	}
 }
 
 void RT64::ShaderVK::compileShaderCode(const std::string &shaderCode,

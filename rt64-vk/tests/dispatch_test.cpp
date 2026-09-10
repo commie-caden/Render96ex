@@ -42,7 +42,9 @@ bool loadSpirv(const std::string &path, std::vector<uint32_t> &out) {
     return true;
 }
 
-struct Vertex { float x, y, z; float pad[8]; };   /* 44-byte stride */
+/* 44 bytes, the stride combiner 0x01200200 asks for. Laid out by the generator
+   rather than guessed: attribute offsets come from the colour combiner. */
+struct Vertex { float f[11]; };
 
 } /* namespace */
 
@@ -74,15 +76,32 @@ int main(int argc, char **argv) {
     /* --- scene with real geometry ------------------------------------- */
     RT64::SceneVK scene(&device, &builder);
     RT64::MeshVK mesh(&device, &builder, RT64_MESH_RAYTRACE_ENABLED);
-    const Vertex verts[3] = { {0,1,0,{0}}, {1,-1,0,{0}}, {-1,-1,0,{0}} };
     const unsigned int idx[3] = { 0, 1, 2 };
-    expect(mesh.setMesh(verts, 3, (int)sizeof(Vertex), idx, 3, error),
-           "mesh built a BLAS");
+    const float positions[3][3] = { {0,1,0}, {1,-1,0}, {-1,-1,0} };
+    Vertex verts[3] = {};
+    /* Filled in below, once the material has told us where its attributes
+       live — an all-zero vertex has zero shade, and the combiner derives alpha
+       from shade, so the geometry would be invisible however well it traces. */
 
     RT64::InstanceVK instance(&scene);
     RT64_INSTANCE_DESC desc = {};
     desc.mesh = (RT64_MESH *)&mesh;
     for (int i = 0; i < 4; i++) desc.transform.m[i][i] = 1.0f;
+    desc.previousTransform = desc.transform;
+    /* A zeroed material is not neutral. PrimaryRayGen skips any recorded hit
+       whose alpha contribution is below EPSILON, so an all-zero material makes
+       a perfectly good intersection invisible — resInstanceId stays -1 and the
+       result is indistinguishable from missing the geometry entirely. */
+    desc.material.solidAlphaMultiplier = 1.0f;
+    desc.material.shadowAlphaMultiplier = 1.0f;
+    desc.material.diffuseColorMix = { 1.0f, 1.0f, 1.0f, 1.0f };
+    desc.material.selfLight = { 1.0f, 1.0f, 1.0f };
+    desc.material.specularColor = { 1.0f, 1.0f, 1.0f };
+    desc.material.specularExponent = 1.0f;
+    desc.material.lightGroupMaskBits = 0;   /* self-lit, no lighting needed */
+    desc.material.diffuseTexIndex = -1;
+    desc.material.normalTexIndex = -1;
+    desc.material.specularTexIndex = -1;
     instance.setDescription(desc);
     expect(scene.updateTopLevel(error), "TLAS built from the scene");
 
@@ -91,10 +110,18 @@ int main(int argc, char **argv) {
     light.attenuationRadius = 100.0f;
     light.groupBits = 0xFFFF;
     expect(scene.setLights(&light, 1, error), "scene lights uploaded");
+    expect(scene.updateInstanceBuffers(error), "instance transforms and materials packed");
+    std::printf("        %u instance(s) packed\n", scene.getPackedInstanceCount());
 
     /* --- view --------------------------------------------------------- */
     RT64::ViewVK view(&device, &scene);
     expect(view.resize(640, 360, error), "view targets created at 640x360");
+    /* A right-handed view matrix for a camera at (0,0,3) looking down -Z at
+       the triangle in the z=0 plane. The view matrix translates the world by
+       the negated camera position. Projection is left null so setCamera builds
+       XMMatrixPerspectiveFovRH itself, matching the original. */
+    float viewMatrix[16] = { 1,0,0,0,  0,1,0,0,  0,0,1,0,  0,0,-3,1 };
+    view.setCamera(viewMatrix, nullptr, 1.047f, 0.1f, 100.0f);
     expect(view.updateDescriptorSet(rt->layout, error), "descriptor set written");
 
     /* --- pipeline ------------------------------------------------------ */
@@ -127,8 +154,68 @@ int main(int argc, char **argv) {
     RT64::ShaderVK material(&compiler, 0x01200200,
         RT64::ShaderVK::Filter::Linear,
         RT64::ShaderVK::AddressingMode::Wrap,
-        RT64::ShaderVK::AddressingMode::Wrap, RT64_SHADER_RAYTRACE_ENABLED);
+        RT64::ShaderVK::AddressingMode::Wrap,
+        /* Both groups, matching what RT64_CreateShader requests. The attribute
+           offsets come from the raster path, and the hit groups read the same
+           vertex data, so a raytrace-only shader would leave them unavailable. */
+        RT64_SHADER_RASTER_ENABLED | RT64_SHADER_RAYTRACE_ENABLED);
     expect(material.isValid(), "material shader generated");
+
+    /* Lay out the vertices using the offsets the generator computed. */
+    {
+        const RT64::ShaderVK::RasterGroup &raster = material.getRasterGroup();
+        std::printf("        vertex stride %u, %zu attributes\n",
+                    raster.vertexStride, raster.attributes.size());
+        for (const auto &attr : raster.attributes) {
+            const char *kind = "?";
+            switch (attr.attribute) {
+                case RT64::ShaderVK::VertexAttribute::Position: kind = "position"; break;
+                case RT64::ShaderVK::VertexAttribute::Normal:   kind = "normal";   break;
+                case RT64::ShaderVK::VertexAttribute::TexCoord: kind = "texcoord"; break;
+                case RT64::ShaderVK::VertexAttribute::Color:    kind = "color";    break;
+            }
+            std::printf("          %-9s offset %2u, %u component(s)\n",
+                        kind, attr.offset, attr.componentCount);
+        }
+        for (int v = 0; v < 3; v++) {
+            for (const auto &attr : raster.attributes) {
+                const uint32_t base = attr.offset / 4;
+                switch (attr.attribute) {
+                    case RT64::ShaderVK::VertexAttribute::Position:
+                        for (uint32_t c = 0; c < 3; c++) {
+                            verts[v].f[base + c] = positions[v][c];
+                        }
+                        break;
+                    case RT64::ShaderVK::VertexAttribute::Normal:
+                        verts[v].f[base + 2] = 1.0f;   /* facing +Z */
+                        break;
+                    case RT64::ShaderVK::VertexAttribute::Color:
+                        /* Opaque white shade: this is what gives the hit a
+                           non-zero alpha for the raygen to keep. */
+                        for (uint32_t c = 0; c < attr.componentCount; c++) {
+                            verts[v].f[base + c] = 1.0f;
+                        }
+                        break;
+                    default:
+                        break;
+                }
+            }
+        }
+        std::printf("        vertex 0 floats:");
+        for (int i = 0; i < 11; i++) { std::printf(" %.0f", verts[0].f[i]); }
+        std::printf("\n");
+        expect(mesh.setMesh(verts, 3, (int)raster.vertexStride, idx, 3, error),
+               "mesh built a BLAS from combiner-laid-out vertices");
+        expect(scene.updateTopLevel(error), "TLAS rebuilt");
+        expect(scene.updateInstanceBuffers(error), "instance buffers repacked");
+        std::printf("        %u instance(s) packed after the rebuild\n",
+                    scene.getPackedInstanceCount());
+        /* updateTopLevel destroys and recreates the acceleration structure, so
+           the descriptor written earlier now names a freed handle. Rewriting
+           is safe here because nothing has been submitted yet. */
+        expect(view.updateDescriptorSet(rt->layout, error),
+               "descriptor set rewritten for the new TLAS");
+    }
     uint32_t firstGroup = 0;
     expect(pipeline.addMaterial(material, firstGroup, error), "material added");
     expect(pipeline.build(&device, builder.functions(), rt->layout, error),
@@ -177,6 +264,115 @@ int main(int argc, char **argv) {
     expect(submitted == VK_SUCCESS, "five ray passes submitted");
     const VkResult waited = vkQueueWaitIdle(device.getGraphicsQueue());
     expect(waited == VK_SUCCESS, "GPU completed the work without device loss");
+
+    /* The point of the whole exercise: did any ray actually hit the triangle?
+       gInstanceId is R32_SINT and PrimaryRayGen writes the instance index on a
+       hit. A dispatch that runs cleanly but hits nothing looks identical to a
+       working one from the outside, so this is the check that distinguishes
+       them. */
+    {
+        /* Report each stage separately. A single hit/miss number cannot
+           distinguish "the camera is wrong" from "rays hit but the material
+           made them invisible", and both look like zero. */
+        auto countNonZeroFloat4 = [&](const char *name, size_t &nonZero,
+                                      size_t &total) -> bool {
+            std::vector<uint8_t> pixels;
+            if (!view.readTarget(name, pixels, error)) { return false; }
+            const float *f = reinterpret_cast<const float *>(pixels.data());
+            total = pixels.size() / (sizeof(float) * 4);
+            nonZero = 0;
+            for (size_t i = 0; i < total; i++) {
+                if (f[i * 4] != 0.0f || f[i * 4 + 1] != 0.0f ||
+                    f[i * 4 + 2] != 0.0f) {
+                    nonZero++;
+                }
+            }
+            return true;
+        };
+
+        size_t n = 0, total = 0;
+        if (countNonZeroFloat4("gViewDirection", n, total)) {
+            std::printf("        gViewDirection:   %6zu / %zu non-zero%s\n",
+                        n, total, n > 0 ? "  (raygen ran, camera valid)" : "");
+            expect(n > 0, "ray generation produced valid ray directions");
+        }
+        if (countNonZeroFloat4("gShadingPosition", n, total)) {
+            std::printf("        gShadingPosition: %6zu / %zu non-zero%s\n",
+                        n, total, n > 0 ? "  (hits were shaded)" : "");
+        }
+        if (countNonZeroFloat4("gDiffuse", n, total)) {
+            std::printf("        gDiffuse:         %6zu / %zu non-zero\n",
+                        n, total);
+        }
+
+        /* The hit buffers record every intersection the anyhit sees, before
+           any alpha test. This is what separates "no rays hit" from "rays hit
+           but the material discarded them" — the image targets cannot. */
+        std::vector<uint8_t> hitLayer;
+        if (view.readHitLayer("gHitDistAndFlow", 0, hitLayer, error)) {
+            const float *d = reinterpret_cast<const float *>(hitLayer.data());
+            const size_t count = hitLayer.size() / (sizeof(float) * 4);
+            size_t intersections = 0;
+            for (size_t i = 0; i < count; i++) {
+                if (d[i * 4] > 0.0f) { intersections++; }
+            }
+            std::printf("        gHitDistAndFlow:  %6zu / %zu intersections"
+                        "  (anyhit, pre-alpha)\n", intersections, count);
+            expect(intersections > 0, "rays intersected the triangle");
+        } else {
+            std::printf("        hit buffer readback: %s\n", error.c_str());
+        }
+
+        /* gHitColor is what the anyhit stored and what the raygen alpha-tests
+           against. Non-zero alpha here means the material and vertex path are
+           correct and the loss is between the anyhit and the raygen — most
+           likely payload.nhits. Zero alpha means the combiner produced a
+           transparent result despite the inputs looking right. */
+        size_t opaqueHits = 0;
+        std::vector<uint8_t> hitColor;
+        if (view.readHitLayer("gHitColor", 0, hitColor, error)) {
+            const uint8_t *c = hitColor.data();
+            const size_t count = hitColor.size() / 4;
+            size_t opaque = 0, anyColor = 0;
+            for (size_t i = 0; i < count; i++) {
+                if (c[i * 4 + 3] > 0) { opaque++; }
+                if (c[i * 4] || c[i * 4 + 1] || c[i * 4 + 2]) { anyColor++; }
+            }
+            std::printf("        gHitColor:        %6zu / %zu with alpha>0, "
+                        "%zu with colour\n", opaque, count, anyColor);
+            opaqueHits = opaque;
+            if (opaque > 0) {
+                std::printf("          -> anyhit produced opaque hits; the loss "
+                            "is between anyhit and raygen (payload.nhits)\n");
+            } else {
+                std::printf("          -> anyhit produced zero alpha; the "
+                            "combiner or material path is at fault\n");
+            }
+        }
+
+        if (opaqueHits > 0) {
+            std::printf("\n        The anyhit produced correct data, so the\n"
+                        "        remaining question is whether payload writes\n"
+                        "        survive IgnoreHit(). Run rt64_payload_test to\n"
+                        "        answer that in isolation.\n\n");
+        }
+
+        std::vector<uint8_t> pixels;
+        if (view.readTarget("gInstanceId", pixels, error)) {
+            const int32_t *ids = reinterpret_cast<const int32_t *>(pixels.data());
+            const size_t count = pixels.size() / sizeof(int32_t);
+            size_t hits = 0;
+            for (size_t i = 0; i < count; i++) {
+                if (ids[i] >= 0) { hits++; }
+            }
+            std::printf("        gInstanceId:      %6zu / %zu hit (%.1f%%)\n",
+                        hits, count, 100.0 * (double)hits / (double)count);
+            expect(hits > 0, "primary rays hit the triangle");
+        } else {
+            std::printf("   \033[31mFAIL\033[0m readback: %s\n", error.c_str());
+            failures++;
+        }
+    }
 
     const uint32_t errs = device.getValidationErrorCount();
     std::printf("   %s validation: %u errors, %u warnings\n",

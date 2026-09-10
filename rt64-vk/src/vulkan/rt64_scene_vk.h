@@ -57,6 +57,15 @@ public:
     int getLightCount() const { return lightCount; }
     VkBuffer getLightBuffer() const { return lightBuffer.buffer; }
 
+    /* Packs per-instance transforms and materials for the shaders.
+       Transforms are copied verbatim, exactly as the D3D12 original did — the
+       shader-side matrix convention is DXC's, and it is the same compiler
+       here, so anything other than a straight copy would change behaviour. */
+    bool updateInstanceBuffers(std::string &error);
+    VkBuffer getTransformBuffer() const { return transformBuffer.buffer; }
+    VkBuffer getMaterialBuffer() const { return materialBuffer.buffer; }
+    uint32_t getPackedInstanceCount() const { return packedInstances; }
+
     /* Rebuilds the TLAS from every instance whose mesh has a bottom level
        structure. Instances without ray tracing are skipped, not an error —
        the raster passes still draw them. */
@@ -73,6 +82,11 @@ private:
     BufferVK lightBuffer;
     int lightCount = 0;
     int lightCapacity = 0;
+
+    BufferVK transformBuffer;
+    BufferVK materialBuffer;
+    uint32_t packedInstances = 0;
+    uint32_t transformCapacity = 0;
 
     AccelerationStructureVK tlas;
     uint32_t raytracedCount = 0;

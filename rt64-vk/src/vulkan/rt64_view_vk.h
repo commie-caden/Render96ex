@@ -64,6 +64,24 @@ public:
     /* Total bytes across every target, for reporting. */
     uint64_t totalBytes() const;
 
+    /* Fills gParams. The camera basis is what PrimaryRayGen builds rays from,
+       so leaving it zeroed produces degenerate rays that hit nothing — which
+       looks exactly like a broken acceleration structure. */
+    void setCamera(const float viewMatrix[16], const float projectionMatrix[16],
+                   float fovRadians, float nearDist, float farDist);
+
+    /* Copies a storage target back to host memory. For tests and debugging:
+       it stalls the queue. */
+    bool readTarget(const std::string &name, std::vector<uint8_t> &out,
+                    std::string &error);
+
+    /* One layer of a gHit* texel buffer. These record every intersection the
+       anyhit sees, before any alpha test, so they distinguish "no rays hit"
+       from "rays hit but were discarded as transparent" — which the image
+       targets cannot. */
+    bool readHitLayer(const std::string &name, uint32_t layer,
+                      std::vector<uint8_t> &out, std::string &error);
+
     /* Puts every storage image into GENERAL, which is the layout ray tracing
        shaders read and write them in. Only needed after a resize. */
     void transitionTargets(VkCommandBuffer cmd);

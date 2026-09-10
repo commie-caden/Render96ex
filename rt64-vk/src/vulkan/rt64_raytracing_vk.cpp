@@ -76,6 +76,43 @@ bool createBuffer(VmaAllocator allocator, VkDevice device, VkDeviceSize size,
     return true;
 }
 
+bool createBufferAligned(VmaAllocator allocator, VkDevice device,
+                         VkDeviceSize size, VkDeviceSize minAlignment,
+                         VkBufferUsageFlags usage, bool hostVisible,
+                         BufferVK &out, std::string &error) {
+    VkBufferCreateInfo info = {};
+    info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    info.size = size;
+    info.usage = usage;
+    info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    VmaAllocationCreateInfo alloc = {};
+    alloc.usage = VMA_MEMORY_USAGE_AUTO;
+    if (hostVisible) {
+        alloc.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT |
+                      VMA_ALLOCATION_CREATE_MAPPED_BIT;
+    }
+
+    VmaAllocationInfo allocInfo = {};
+    VkResult res = vmaCreateBufferWithAlignment(allocator, &info, &alloc,
+                                                minAlignment, &out.buffer,
+                                                &out.allocation, &allocInfo);
+    if (res != VK_SUCCESS) {
+        error = "vmaCreateBufferWithAlignment failed (" +
+                std::to_string((int)res) + ")";
+        return false;
+    }
+    out.mapped = allocInfo.pMappedData;
+
+    if (usage & VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT) {
+        VkBufferDeviceAddressInfo addressInfo = {};
+        addressInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
+        addressInfo.buffer = out.buffer;
+        out.address = vkGetBufferDeviceAddress(device, &addressInfo);
+    }
+    return true;
+}
+
 /* ------------------------------------------------- acceleration structures */
 
 void AccelerationStructureVK::destroy(const RayTracingFunctions &fn,
@@ -429,11 +466,22 @@ bool ShaderBindingTable::build(DeviceVK *device, const RayTracingFunctions &fn,
     const VkDeviceSize hitSize    = alignUp(hitCount    * hitStride, baseAlignment);
     const VkDeviceSize total = raygenSize + missSize + hitSize;
 
-    if (!createBuffer(device->getAllocator(), device->getDevice(), total,
-                      VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR |
-                      VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
-                      VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                      true, buffer, error)) {
+    if (!createBufferAligned(device->getAllocator(), device->getDevice(), total,
+                             baseAlignment,
+                             VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR |
+                             VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
+                             VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                             true, buffer, error)) {
+        return false;
+    }
+
+    /* Aligning the allocation is necessary but worth confirming: a silent
+       misalignment here shows up only as vkCmdTraceRaysKHR rejecting every
+       dispatch, several layers from the cause. */
+    if ((buffer.address % baseAlignment) != 0) {
+        error = "shader binding table address " +
+                std::to_string(buffer.address) + " is not aligned to " +
+                std::to_string(baseAlignment);
         return false;
     }
 

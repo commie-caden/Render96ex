@@ -231,6 +231,18 @@ if(RT64_BUILD_SHADERS)
     add_dependencies(rt64_raster_test rt64_shaders)
 endif()
 
+# Isolates whether a payload write survives IgnoreHit(). Needs a GPU.
+add_executable(rt64_payload_test tests/payload_test.cpp)
+target_include_directories(rt64_payload_test PRIVATE
+    ${RT64_PUBLIC_INCLUDE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/vulkan)
+target_include_directories(rt64_payload_test SYSTEM PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/contrib/vma)
+target_link_libraries(rt64_payload_test PRIVATE rt64 Vulkan::Vulkan PkgConfig::SDL2)
+if(RT64_BUILD_SHADERS)
+    add_dependencies(rt64_payload_test rt64_test_shaders)
+endif()
+
 # The five ray passes, dispatched. Needs a GPU.
 add_executable(rt64_dispatch_test tests/dispatch_test.cpp)
 target_include_directories(rt64_dispatch_test PRIVATE

@@ -87,6 +87,9 @@ private:
                                 const std::string &hitGroupName,
                                 const std::string &closestHitName,
                                 const std::string &anyHitName);
+    /* VertexLayout is private to the generator's .cpp, so only the stride
+       crosses the boundary. */
+    void recordVertexStride(uint32_t stride);
     void compileShaderCode(const std::string &shaderCode,
                            const std::string &entryName,
                            const std::string &profile,

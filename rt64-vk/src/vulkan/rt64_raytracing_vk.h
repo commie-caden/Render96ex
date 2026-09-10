@@ -62,6 +62,16 @@ bool createBuffer(VmaAllocator allocator, VkDevice device, VkDeviceSize size,
                   VkBufferUsageFlags usage, bool hostVisible, BufferVK &out,
                   std::string &error);
 
+/* As above, but with a guaranteed minimum alignment for the allocation. The
+   shader binding table needs this: aligning the regions within the buffer is
+   not enough, because shaderGroupBaseAlignment applies to the device address
+   each region starts at, and a buffer's own address is only aligned to what
+   its usage flags require. */
+bool createBufferAligned(VmaAllocator allocator, VkDevice device,
+                         VkDeviceSize size, VkDeviceSize minAlignment,
+                         VkBufferUsageFlags usage, bool hostVisible,
+                         BufferVK &out, std::string &error);
+
 /* ------------------------------------------------- acceleration structures */
 
 struct AccelerationStructureVK {
