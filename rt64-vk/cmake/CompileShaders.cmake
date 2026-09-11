@@ -12,6 +12,15 @@
 #                 Shifting keeps UAVs at 0..31 in HeapIndices order and parks
 #                 the rest clear of them.
 #
+#   -fvk-use-dx-layout
+#                 D3D packs StructuredBuffer elements tightly; DXC's SPIR-V
+#                 output otherwise uses a GLSL-like layout where float3 aligns
+#                 to 16. LightInfo came out with diffuseColor at offset 16 and
+#                 a stride of 64, against RT64_LIGHT's 12 and 60 — so every
+#                 light field was misread and GetDimensions returned the wrong
+#                 count. The same mismatch applies to instanceMaterials and
+#                 instanceTransforms, which are also memcpy'd from C structs.
+#
 # Keep RT64_VK_*_SHIFT in step with the descriptor set layout in the backend:
 # these numbers *are* the binding scheme.
 
@@ -112,7 +121,7 @@ function(rt64_compile_shaders target shader_dir output_dir)
                     "LD_LIBRARY_PATH=${RT64_DXC_LIBRARY_DIR}:$ENV{LD_LIBRARY_PATH}"
                     ${RT64_DXC_EXECUTABLE}
                     -T ${profile} ${entry_arg}
-                    -spirv -HV 2018
+                    -spirv -HV 2018 -fvk-use-dx-layout
                     -fspv-target-env=${RT64_SPV_TARGET_ENV}
                     -fvk-u-shift ${RT64_VK_U_SHIFT} 0
                     -fvk-t-shift ${RT64_VK_T_SHIFT} 0

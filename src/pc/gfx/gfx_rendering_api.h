@@ -1,6 +1,11 @@
 #ifndef GFX_RENDERING_API_H
 #define GFX_RENDERING_API_H
 
+// The GFX_* feature macros decide which members struct GfxRenderingAPI has, so
+// every translation unit that sees this header must see the config first or it
+// gets a different struct layout than its neighbours.
+#include "gfx_rendering_api_config.h"
+
 #include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>

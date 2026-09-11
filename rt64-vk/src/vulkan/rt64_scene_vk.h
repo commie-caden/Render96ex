@@ -45,6 +45,12 @@ public:
     SceneVK(DeviceVK *device, AccelerationStructureBuilder *builder);
     ~SceneVK();
 
+    /* Opaque back-pointer to the DeviceContext that owns this scene, so
+       RT64_CreateView can reach the device's shared state from a scene
+       handle alone. */
+    void setOwnerHandle(void *owner) { ownerHandle = owner; }
+    void *getOwnerHandle() const { return ownerHandle; }
+
     void addInstance(InstanceVK *instance);
     void removeInstance(InstanceVK *instance);
     const std::vector<InstanceVK *> &getInstances() const { return instances; }
@@ -76,6 +82,7 @@ public:
 private:
     DeviceVK *device = nullptr;
     AccelerationStructureBuilder *builder = nullptr;
+    void *ownerHandle = nullptr;
     std::vector<InstanceVK *> instances;
     RT64_SCENE_DESC description = {};
 

@@ -9,6 +9,7 @@
 #include <map>
 #include <mutex>
 #include <queue>
+#include <set>
 #include <string>
 #include <thread>
 #include <unordered_map>
@@ -19,7 +20,16 @@
 #endif
 #include <PR/gbi.h>
 
+// VULKAN PORT: the RT64 backend is no longer Windows-only. SDL supplies the
+// window and the performance counter; the few Win32 types this header used
+// have portable stand-ins in gfx_rt64.cpp.
+#if defined(_WIN32) || defined(_WIN64)
 #include <Windows.h>
+#else
+#include <SDL2/SDL.h>
+typedef struct { int64_t QuadPart; } RT64_TIMER;
+#define LARGE_INTEGER RT64_TIMER
+#endif
 
 #define MAX_GEO_LAYOUT_STACK_SIZE		32
 #define CACHED_MESH_REQUIRED_FRAMES		5
@@ -36,6 +46,9 @@ struct ShaderProgram {
     uint8_t numInputs;
     bool usedTextures[2];
 	std::unordered_map<uint16_t, RT64_SHADER *> shaderVariantMap;
+	// Variants that failed to compile. Without this a null result reads as
+	// "not loaded yet" and the variant is retried on every single draw.
+	std::set<uint16_t> shaderVariantFailed;
 };
 
 struct RecordedTexture {
@@ -162,13 +175,18 @@ struct UploadTexture {
 
 struct RT64Context {
 	// Window data.
+#if defined(_WIN32) || defined(_WIN64)
 	HWND hwnd = NULL;
+#endif
+	SDL_Window *window = NULL;
 	bool isFullScreen = false;
 	bool lastMaximizedState = false;
 	bool useVsync = true;
 	bool cursorVisible = true;
 	bool windowActive = true;
+#if defined(_WIN32) || defined(_WIN64)
 	RECT lastWindowRect;
+#endif
 	
 	// Mouselook support.
 	bool mouselookEnabled = false;
@@ -276,6 +294,11 @@ struct RT64Context {
     void (*on_all_keys_up)(void);
 };
 
-extern RT64Context RT64;
+// VULKAN PORT: RT64Context is reached from DynOS's startup constructor, which
+// may run before a plain global's constructor. A function-local static is
+// guaranteed to be constructed on first use, whatever the order. The macro
+// keeps every existing "RT64.field" site unchanged.
+RT64Context &gfx_rt64_context(void);
+#define RT64 gfx_rt64_context()
 
 #endif

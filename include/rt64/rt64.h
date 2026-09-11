@@ -9,6 +9,10 @@
 #   include <Windows.h>
 #else
 #   include <dlfcn.h>
+#   include <unistd.h>
+#   include <stdio.h>
+#   include <stdlib.h>
+#   include <string.h>
     /* The inspector's message hook is Win32-shaped. On POSIX the game feeds it
        SDL events instead, but the typedef must still exist for ABI parity. */
     typedef unsigned int RT64_MSG;
@@ -379,10 +383,52 @@ inline RT64_LIBRARY RT64_LoadLibrary() {
 	lib.handle = (void *)LoadLibrary(TEXT("rt64lib.dll"));
 #   endif
 #else
-	/* Prefer a build sitting next to the executable, then the system path. */
-	lib.handle = dlopen("librt64.so", RTLD_NOW | RTLD_LOCAL);
-	if (lib.handle == 0) {
-		lib.handle = dlopen("./librt64.so", RTLD_NOW | RTLD_LOCAL);
+	/* Windows LoadLibrary searches the application's own directory, so the
+	   faithful equivalent resolves paths against the executable rather than
+	   the working directory. Launching as ./build/us_pc/sm64.us.f3dex2e from
+	   the project root otherwise fails, because "./librt64.so" is relative to
+	   wherever the shell happens to be. */
+	{
+		char exeDir[4096];
+		ssize_t len = readlink("/proc/self/exe", exeDir, sizeof(exeDir) - 1);
+		if (len > 0) {
+			exeDir[len] = '\0';
+			char *slash = strrchr(exeDir, '/');
+			if (slash != NULL) {
+				*slash = '\0';
+			}
+		} else {
+			exeDir[0] = '\0';
+		}
+
+		const char *envPath = getenv("RT64_LIB");
+		char beside[4096];
+		if (exeDir[0] != '\0') {
+			snprintf(beside, sizeof(beside), "%s/librt64.so", exeDir);
+		} else {
+			beside[0] = '\0';
+		}
+
+		const char *candidates[4];
+		int count = 0;
+		if (envPath != NULL)   { candidates[count++] = envPath; }
+		if (beside[0] != '\0') { candidates[count++] = beside; }
+		candidates[count++] = "librt64.so";     /* loader search path */
+		candidates[count++] = "./librt64.so";   /* working directory */
+
+		lib.handle = 0;
+		for (int i = 0; (i < count) && (lib.handle == 0); i++) {
+			lib.handle = dlopen(candidates[i], RTLD_NOW | RTLD_LOCAL);
+			if (lib.handle == 0) {
+				/* Keep the last error: a library that exists but fails to load
+				   (a missing dependency, say) reports something far more
+				   useful than "No such file or directory". */
+				const char *why = dlerror();
+				if (why != NULL) {
+					fprintf(stderr, "RT64: %s\n", why);
+				}
+			}
+		}
 	}
 #endif
 

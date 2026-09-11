@@ -6,6 +6,10 @@
 
 #include <ultra64.h>
 #include "macros.h"
+
+// GraphNode gains a uid under GFX_SEPARATE_PROJECTIONS, so this header needs
+// the feature macros just as the renderer does.
+#include "pc/gfx/gfx_rendering_api.h"
 #include "data/dynos.c.h"
 
 

@@ -7,6 +7,11 @@
 #include "types.h"
 #include "game/memory.h"
 
+// Brings in the GFX_* feature macros: GraphNode gains a uid member under
+// GFX_ENABLE_GRAPH_NODE_MODS, so every user of this header must agree on
+// whether that field exists.
+#include "pc/gfx/gfx_pc.h"
+
 #define GRAPH_RENDER_ACTIVE         (1 << 0)
 #define GRAPH_RENDER_CHILDREN_FIRST (1 << 1)
 #define GRAPH_RENDER_BILLBOARD      (1 << 2)

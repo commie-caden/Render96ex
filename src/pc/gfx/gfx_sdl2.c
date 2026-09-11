@@ -44,7 +44,27 @@ extern int appletGetOperationMode(void);
 # define FRAMERATE 30
 
 static SDL_Window *wnd;
+
+#ifdef RAPI_RT64
+// gfx_rt64 hands this to RT64_CreateDevice; the library creates the Vulkan
+// surface and swapchain from it.
+SDL_Window *gfx_sdl_get_window(void) { return wnd; }
+#endif
 static SDL_GLContext ctx = NULL;
+
+#ifdef RAPI_RT64
+// RT64 renders through Vulkan, so the window carries a Vulkan surface and
+// there is no GL context to create or swap. The rest of this window manager
+// is API-agnostic and is shared with the GL backends unchanged.
+#include <SDL2/SDL_vulkan.h>
+#define WAPI_WINDOW_FLAG SDL_WINDOW_VULKAN
+#define WAPI_GL_SWAP(w)         ((void)(w))
+#define WAPI_GL_SET_INTERVAL(n) ((void)(n))
+#else
+#define WAPI_WINDOW_FLAG SDL_WINDOW_OPENGL
+#define WAPI_GL_SWAP(w)         SDL_GL_SwapWindow(w)
+#define WAPI_GL_SET_INTERVAL(n) SDL_GL_SetSwapInterval(n)
+#endif
 static int inverted_scancode_table[512];
 
 static kb_callback_t kb_key_down = NULL;
@@ -120,13 +140,13 @@ int test_vsync(void) {
     // is a reason this generic SDL2 backend should only be used as last resort.
 
     for (int i = 0; i < 8; ++i)
-        SDL_GL_SwapWindow(wnd);
+        WAPI_GL_SWAP(wnd);
 
     Uint32 start = SDL_GetTicks();
-    SDL_GL_SwapWindow(wnd);
-    SDL_GL_SwapWindow(wnd);
-    SDL_GL_SwapWindow(wnd);
-    SDL_GL_SwapWindow(wnd);
+    WAPI_GL_SWAP(wnd);
+    WAPI_GL_SWAP(wnd);
+    WAPI_GL_SWAP(wnd);
+    WAPI_GL_SWAP(wnd);
     Uint32 end = SDL_GetTicks();
 
     const float average = 4.0 * 1000.0 / (end - start);
@@ -143,11 +163,11 @@ int test_vsync(void) {
 static inline void gfx_sdl_set_vsync(const bool enabled) {
 #ifdef TARGET_SWITCH
     use_timer = false;
-        SDL_GL_SetSwapInterval(1);
+        WAPI_GL_SET_INTERVAL(1);
 #else
     if (enabled) {
         // try to detect refresh rate
-        SDL_GL_SetSwapInterval(1);
+        WAPI_GL_SET_INTERVAL(1);
         int vblanks = test_vsync();
         if (vblanks & 1)
             vblanks = 0; // not divisible by 60, fuck that
@@ -156,7 +176,7 @@ static inline void gfx_sdl_set_vsync(const bool enabled) {
 
         if (vblanks) {
             printf("determined swap interval: %d\n", vblanks);
-            SDL_GL_SetSwapInterval(vblanks);
+            WAPI_GL_SET_INTERVAL(vblanks);
             use_timer = false;
             return;
         } else {
@@ -165,7 +185,7 @@ static inline void gfx_sdl_set_vsync(const bool enabled) {
     }
 
     use_timer = true;
-    SDL_GL_SetSwapInterval(0);
+    WAPI_GL_SET_INTERVAL(0);
 #endif
 }
 
@@ -210,6 +230,7 @@ static void gfx_sdl_reset_dimension_and_pos(void) {
 static void gfx_sdl_init(const char *window_title) {
     SDL_Init(SDL_INIT_VIDEO);
 
+#ifndef RAPI_RT64
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 
@@ -221,6 +242,7 @@ static void gfx_sdl_init(const char *window_title) {
 
     //SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 1);
     //SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 4);
+#endif
 
     #ifdef TARGET_SWITCH
     configWindow.fullscreen = false;
@@ -242,9 +264,11 @@ static void gfx_sdl_init(const char *window_title) {
     wnd = SDL_CreateWindow(
         window_title,
         xpos, ypos, configWindow.w, configWindow.h,
-        SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE
+        WAPI_WINDOW_FLAG | SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE
     );
+#ifndef RAPI_RT64
     ctx = SDL_GL_CreateContext(wnd);
+#endif
 
     gfx_sdl_set_vsync(configWindow.vsync);
 
@@ -364,7 +388,7 @@ static inline void sync_framerate_with_timer(void) {
 
 static void gfx_sdl_swap_buffers_begin(void) {
     if (use_timer) sync_framerate_with_timer();
-    SDL_GL_SwapWindow(wnd);
+    WAPI_GL_SWAP(wnd);
 }
 
 static void gfx_sdl_swap_buffers_end(void) {
@@ -377,7 +401,9 @@ static double gfx_sdl_get_time(void) {
 
 static void gfx_sdl_shutdown(void) {
     if (SDL_WasInit(0)) {
+#ifndef RAPI_RT64
         if (ctx) { SDL_GL_DeleteContext(ctx); ctx = NULL; }
+#endif
         if (wnd) { SDL_DestroyWindow(wnd); wnd = NULL; }
         SDL_Quit();
     }

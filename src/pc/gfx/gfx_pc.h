@@ -1,6 +1,11 @@
 #ifndef GFX_PC_H
 #define GFX_PC_H
 
+// gfx_pc.c branches on the GFX_* macros in twenty places — vertex layout,
+// projections, texture naming. Without them it builds a vertex buffer the
+// renderer does not expect.
+#include "gfx_rendering_api_config.h"
+
 struct GfxRenderingAPI;
 struct GfxWindowManagerAPI;
 

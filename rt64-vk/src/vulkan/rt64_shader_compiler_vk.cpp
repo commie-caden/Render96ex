@@ -1,4 +1,5 @@
 #include "rt64_shader_compiler_vk.h"
+#include "rt64_paths_vk.h"
 
 #include <cstring>
 #include <dlfcn.h>
@@ -40,6 +41,8 @@ bool ShaderCompilerVK::initialize(const std::string &explicitPath,
     if (const char *env = std::getenv("RT64_DXC_LIB")) {
         candidates.push_back(env);
     }
+    /* Beside the executable first, matching how Windows resolves DLLs. */
+    candidates.push_back(besideExecutable("libdxcompiler.so"));
     candidates.push_back("./libdxcompiler.so");
     candidates.push_back("libdxcompiler.so");
 
@@ -101,6 +104,9 @@ bool ShaderCompilerVK::compile(const std::string &source,
     argStorage.push_back(L"-HV");
     argStorage.push_back(L"2018");
     argStorage.push_back(L"-fspv-target-env=vulkan1.3");
+    /* Must match cmake/CompileShaders.cmake: without DX layout, structured
+       buffers shared with the build-time shaders would disagree on offsets. */
+    argStorage.push_back(L"-fvk-use-dx-layout");
     argStorage.push_back(L"-fvk-u-shift");
     argStorage.push_back(widen(std::to_string(RT64_VK_U_SHIFT)));
     argStorage.push_back(L"0");

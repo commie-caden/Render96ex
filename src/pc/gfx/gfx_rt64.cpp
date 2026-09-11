@@ -1,7 +1,5 @@
 #ifdef RAPI_RT64
 
-#if defined(_WIN32) || defined(_WIN64)
-
 #if !defined(EXTERNAL_DATA) && !defined(DYNOS)
 #error "RT64 requires EXTERNAL_DATA to be enabled."
 #endif
@@ -22,11 +20,27 @@ extern "C" {
 #include <stb/stb_image.h>
 #include "xxhash/xxhash64.h"
 
+#include <SDL2/SDL.h>
+
+#include "gfx_window_manager_api.h"
+
+// VULKAN PORT: RT64 now uses the game's own SDL window manager rather than a
+// private Win32 one, so fullscreen, vsync, keyboard and events behave exactly
+// as they do for the OpenGL backends.
+extern struct GfxWindowManagerAPI gfx_sdl;
+extern "C" SDL_Window *gfx_sdl_get_window(void);
+
 #include "gfx_rt64.h"
 #include "gfx_rt64_context.h"
 #include "gfx_rt64_serialization.h"
 #include "gfx_rt64_geo_map.h"
 
+// VULKAN PORT: the Win32 raw-input button flags have no SDL equivalent —
+// SDL_BUTTON_* are button *indices*, not paired down/up bitmasks, because SDL
+// delivers press and release as separate events. The table only fed the
+// WM_INPUT handler, which is gone, so on non-Windows it is a placeholder kept
+// so the array's users still compile.
+#if defined(_WIN32) || defined(_WIN64)
 const unsigned short MouseButtonFlags[MAX_MOUSE_BUTTONS][2] = {
 	{ RI_MOUSE_BUTTON_1_DOWN, RI_MOUSE_BUTTON_1_UP },
 	{ RI_MOUSE_BUTTON_2_DOWN, RI_MOUSE_BUTTON_2_UP },
@@ -34,6 +48,11 @@ const unsigned short MouseButtonFlags[MAX_MOUSE_BUTTONS][2] = {
 	{ RI_MOUSE_BUTTON_4_DOWN, RI_MOUSE_BUTTON_4_UP },
 	{ RI_MOUSE_BUTTON_5_DOWN, RI_MOUSE_BUTTON_5_UP },
 };
+#else
+const unsigned short MouseButtonFlags[MAX_MOUSE_BUTTONS][2] = {
+	{ 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 },
+};
+#endif
 
 void gfx_rt64_render_thread();
 
@@ -95,6 +114,17 @@ static void gfx_matrix_mul(float res[4][4], const float a[4][4], const float b[4
     memcpy(res, tmp, sizeof(tmp));
 }
 
+// VULKAN PORT: portable replacements for the Win32 timing types. SDL's
+// performance counter has the same semantics as QueryPerformanceCounter, so
+// every call site below is untouched.
+static inline void QueryPerformanceCounter(RT64_TIMER *out) {
+	out->QuadPart = (int64_t)SDL_GetPerformanceCounter();
+}
+
+static inline void QueryPerformanceFrequency(RT64_TIMER *out) {
+	out->QuadPart = (int64_t)SDL_GetPerformanceFrequency();
+}
+
 static inline LARGE_INTEGER gfx_rt64_profile_marker() {
 	LARGE_INTEGER marker;
 	QueryPerformanceCounter(&marker);
@@ -117,7 +147,13 @@ static void gfx_rt64_rapi_load_shader(struct ShaderProgram *new_prg) {
 	RT64.shaderProgram = new_prg;
 }
 
-static struct ShaderProgram *gfx_rt64_rapi_create_and_load_new_shader(uint32_t shader_id) {
+// Creates and registers a shader program WITHOUT binding it. The render thread
+// preloads shader variants concurrently with the main thread's drawing, and
+// binding here would swap RT64.shaderProgram mid-frame: the main thread would
+// then compute its vertex layout from one combiner while gfx_pc built the
+// buffer from another, which shows up as
+// "(buf_vbo_len * 4) % vertexStride != 0".
+static ShaderProgram *gfx_rt64_create_shader_program(uint32_t shader_id) {
 	ShaderProgram *shaderProgram = new ShaderProgram();
     int c[2][4];
     for (int i = 0; i < 4; i++) {
@@ -151,8 +187,14 @@ static struct ShaderProgram *gfx_rt64_rapi_create_and_load_new_shader(uint32_t s
 		RT64.shaderPrograms[shader_id] = shaderProgram;
 	}
 
-	gfx_rt64_rapi_load_shader(shaderProgram);
+	return shaderProgram;
+}
 
+static struct ShaderProgram *gfx_rt64_rapi_create_and_load_new_shader(uint32_t shader_id) {
+	// The rendering API entry point does bind, because gfx_pc calls it as part
+	// of selecting the shader for the draw it is about to issue.
+	ShaderProgram *shaderProgram = gfx_rt64_create_shader_program(shader_id);
+	gfx_rt64_rapi_load_shader(shaderProgram);
 	return shaderProgram;
 }
 
@@ -180,10 +222,31 @@ RT64_SHADER *gfx_rt64_render_thread_load_shader_variant(ShaderProgram *shaderPro
 			flags |= RT64_SHADER_SPECULAR_MAP_ENABLED;
 		}
 
-		shaderProgram->shaderVariantMap[variantKey] = RT64.lib.CreateShader(RT64.device, shaderProgram->shaderId, filter, hAddr, vAddr, flags);
+		RT64_SHADER *created = RT64.lib.CreateShader(RT64.device, shaderProgram->shaderId, filter, hAddr, vAddr, flags);
+		if (created == nullptr) {
+			// A null result means the variant map still reads "not loaded", so
+			// the next frame tries again — forever, once per draw, flooding the
+			// log and starving the render thread. Record the failure so it is
+			// attempted once, and say why.
+			if (shaderProgram->shaderVariantFailed.insert(variantKey).second) {
+				const char *why = RT64.lib.GetLastError ? RT64.lib.GetLastError() : "unknown";
+				fprintf(stderr,
+					"RT64: shader 0x%X variant (raytrace=%d filter=%d hAddr=%d "
+					"vAddr=%d normalMap=%d specularMap=%d) failed to compile:\n"
+					"      %s\n",
+					shaderProgram->shaderId, raytrace, filter, hAddr, vAddr,
+					(int)normalMap, (int)specularMap, why ? why : "no message");
+			}
+			return nullptr;
+		}
+
+		shaderProgram->shaderVariantMap[variantKey] = created;
 
 		// Print shader discovery to reduce stutters when playing through the game.
 		printf("gfx_rt64_render_thread_preload_shader(0x%X, %d, %d, %d, %d, %s, %s);\n", shaderProgram->shaderId, raytrace, filter, hAddr, vAddr, normalMap ? "true" : "false", specularMap ? "true" : "false");
+	}
+	else if (shaderProgram->shaderVariantFailed.count(variantKey) > 0) {
+		return nullptr;
 	}
 
 	return shaderProgram->shaderVariantMap[variantKey];
@@ -192,7 +255,7 @@ RT64_SHADER *gfx_rt64_render_thread_load_shader_variant(ShaderProgram *shaderPro
 void gfx_rt64_render_thread_preload_shader(unsigned int shader_id, bool raytrace, int filter, int hAddr, int vAddr, bool normalMap, bool specularMap) {
 	ShaderProgram *shaderProgram = gfx_rt64_rapi_lookup_shader(shader_id);
 	if (shaderProgram == nullptr) {
-		shaderProgram = gfx_rt64_rapi_create_and_load_new_shader(shader_id);
+		shaderProgram = gfx_rt64_create_shader_program(shader_id);
 	}
 
 	gfx_rt64_render_thread_load_shader_variant(shaderProgram, raytrace, filter, hAddr, vAddr, normalMap, specularMap);
@@ -288,317 +351,64 @@ void gfx_rt64_toggle_inspector() {
 	RT64.renderInspectorActive = !RT64.renderInspectorActive;
 }
 
-static void onkeydown(WPARAM w_param, LPARAM l_param) {
-    int key = ((l_param >> 16) & 0x1ff);
-    if (RT64.on_key_down != nullptr) {
-        RT64.on_key_down(key);
-    }
-}
-
-static void onkeyup(WPARAM w_param, LPARAM l_param) {
-    int key = ((l_param >> 16) & 0x1ff);
-    if (RT64.on_key_up != nullptr) {
-        RT64.on_key_up(key);
-    }
-}
+// VULKAN PORT: onkeydown/onkeyup unpacked Win32 scancodes out of an LPARAM and
+// were only ever called from wnd_proc. gfx_sdl calls the game's key callbacks
+// directly, so these are gone rather than reimplemented.
 
 // Adapted from gfx_dxgi.cpp
+// VULKAN PORT: 85 lines of Win32 fullscreen and window-placement handling
+// removed. gfx_sdl already implements this, and configWindow is shared, so
+// the RT64 path now honours the same fullscreen and window settings as the
+// OpenGL backends rather than reimplementing them.
 static void gfx_rt64_toggle_full_screen(bool enable) {
-    // Windows 7 + flip mode + waitable object can't go to exclusive fullscreen,
-    // so do borderless instead. If DWM is enabled, this means we get one monitor
-    // sync interval of latency extra. On Win 10 however (maybe Win 8 too), due to
-    // "fullscreen optimizations" the latency is eliminated.
-    if (enable == RT64.isFullScreen) {
-        return;
-    }
-
-    if (!enable) {
-        RECT r = RT64.lastWindowRect;
-
-        // Set in window mode with the last saved position and size
-        SetWindowLongPtr(RT64.hwnd, GWL_STYLE, WS_VISIBLE | WS_OVERLAPPEDWINDOW);
-
-        if (RT64.lastMaximizedState) {
-            SetWindowPos(RT64.hwnd, NULL, 0, 0, 0, 0, SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE);
-            ShowWindow(RT64.hwnd, SW_MAXIMIZE);
-        } else {
-            SetWindowPos(RT64.hwnd, NULL, r.left, r.top, r.right - r.left, r.bottom - r.top, SWP_FRAMECHANGED);
-            ShowWindow(RT64.hwnd, SW_RESTORE);
-        }
-    } else {
-        // Save if window is maximized or not
-        WINDOWPLACEMENT windowPlacement;
-        windowPlacement.length = sizeof(WINDOWPLACEMENT);
-        GetWindowPlacement(RT64.hwnd, &windowPlacement);
-        RT64.lastMaximizedState = windowPlacement.showCmd == SW_SHOWMAXIMIZED;
-
-        // Save window position and size if the window is not maximized
-        GetWindowRect(RT64.hwnd, &RT64.lastWindowRect);
-        configWindow.x = RT64.lastWindowRect.left;
-        configWindow.y = RT64.lastWindowRect.top;
-        configWindow.w = RT64.lastWindowRect.right - RT64.lastWindowRect.left;
-        configWindow.h = RT64.lastWindowRect.bottom - RT64.lastWindowRect.top;
-
-        // Get in which monitor the window is
-        HMONITOR hmonitor = MonitorFromWindow(RT64.hwnd, MONITOR_DEFAULTTONEAREST);
-
-        // Get info from that monitor
-        MONITORINFOEX monitorInfo;
-        monitorInfo.cbSize = sizeof(MONITORINFOEX);
-        GetMonitorInfo(hmonitor, &monitorInfo);
-        RECT r = monitorInfo.rcMonitor;
-
-        // Set borderless full screen to that monitor
-        SetWindowLongPtr(RT64.hwnd, GWL_STYLE, WS_VISIBLE | WS_POPUP);
-        SetWindowPos(RT64.hwnd, HWND_TOP, r.left, r.top, r.right - r.left, r.bottom - r.top, SWP_FRAMECHANGED);
-    }
-
-    RT64.isFullScreen = enable;
+	configWindow.fullscreen = enable;
+	RT64.isFullScreen = enable;
 }
 
-void gfx_rt64_apply_config() {
-	{
-    	const std::lock_guard<std::mutex> lock(RT64.renderViewDescMutex);
-		RT64.renderViewDesc.resolutionScale = configRT64ResScale / 100.0f;
-		RT64.renderViewDesc.maxLights = configRT64MaxLights;
-		RT64.renderViewDesc.diSamples = configRT64SphereLights ? 1 : 0;
-		RT64.renderViewDesc.giSamples = configRT64GI ? 1 : 0;
-		RT64.renderViewDesc.denoiserEnabled = configRT64Denoiser;
-		RT64.renderViewDesc.motionBlurStrength = configRT64MotionBlurStrength / 100.0f;
-		RT64.renderViewDesc.upscaler = configRT64Upscaler;
-		RT64.renderViewDesc.upscalerMode = configRT64UpscalerMode;
-		RT64.renderViewDesc.upscalerSharpness = configRT64UpscalerSharpness / 100.0f;
-		RT64.useVsync = configWindow.vsync;
-		RT64.targetFPS = configRT64TargetFPS;
-		RT64.renderViewDescChanged = true;
-	}
-
-	// Adapted from gfx_dxgi.cpp
-	if (configWindow.fullscreen != RT64.isFullScreen) {
-        gfx_rt64_toggle_full_screen(configWindow.fullscreen);
-	}
-
-	if (!RT64.isFullScreen) {
-		const int screenWidth = GetSystemMetrics(SM_CXSCREEN);
-        const int screenHeight = GetSystemMetrics(SM_CYSCREEN);
-        const int xpos = (configWindow.x == WAPI_WIN_CENTERPOS) ? (screenWidth - configWindow.w) * 0.5 : configWindow.x;
-        const int ypos = (configWindow.y == WAPI_WIN_CENTERPOS) ? (screenHeight - configWindow.h) * 0.5 : configWindow.y;
-        RECT wr = { xpos, ypos, xpos + (int)configWindow.w, ypos + (int)configWindow.h };
-        AdjustWindowRect(&wr, WS_OVERLAPPEDWINDOW, FALSE);
-        SetWindowPos(RT64.hwnd, NULL, wr.left, wr.top, wr.right - wr.left, wr.bottom - wr.top, SWP_NOACTIVATE | SWP_NOZORDER);
-	}
+static void gfx_rt64_apply_window_settings(void) {
+	// Handled by gfx_sdl.handle_events, which reads configWindow directly.
 }
 
 static bool gfx_rt64_use_vsync() {
 	return RT64.useVsync && !RT64.turboMode;
 }
 
-LRESULT CALLBACK gfx_rt64_wnd_proc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
-	if (RT64.renderInspectorActive && (RT64.renderInspector != nullptr) && RT64.lib.HandleMessageInspector(RT64.renderInspector, message, wParam, lParam)) {
-		return true;
-	}
-
-	switch (message) {
-	case WM_SYSKEYDOWN:
-		// Alt + Enter.
-		if ((wParam == VK_RETURN) && ((lParam & 1 << 30) == 0)) {
-			gfx_rt64_toggle_full_screen(!RT64.isFullScreen);
-			break;
-		} else {
-			return DefWindowProcW(hWnd, message, wParam, lParam);
-		}
-	case WM_CLOSE:
-		PostQuitMessage(0);
-		game_exit();
-		break;
-	case WM_ACTIVATEAPP:
-		RT64.windowActive = (wParam == TRUE);
-
-        if (RT64.on_all_keys_up != nullptr) {
-        	RT64.on_all_keys_up();
-		}
-
-        break;
-	case WM_RBUTTONDOWN:
-		if (RT64.renderInspectorActive) {
-			const std::lock_guard<std::mutex> pickLock(RT64.pickTextureMutex);
-			RT64.pickTextureHash = 0;
-			RT64.pickTexture = true;
-			RT64.pickTextureHighlight = true;
-		}
-
-		break;
-	case WM_RBUTTONUP:
-		if (RT64.renderInspectorActive) {
-			const std::lock_guard<std::mutex> pickLock(RT64.pickTextureMutex);
-			RT64.pickTextureHighlight = false;
-		}
-
-		break;
-	case WM_KEYDOWN:
-		if (wParam == VK_F1) {
-			gfx_rt64_toggle_inspector();
-		}
-
-		if (wParam == VK_F2) {
-			RT64.pauseMode = !RT64.pauseMode;
-		}
-
-		if (wParam == VK_F4) {
-			RT64.turboMode = !RT64.turboMode;
-		}
-		
-		if (RT64.renderInspectorActive) {
-			if (wParam == VK_F5) {
-				const std::lock_guard<std::mutex> lightingLock(RT64.levelAreaLightingMutex);
-				const std::lock_guard<std::mutex> texModsLock(RT64.texModsMutex);
-				gfx_rt64_save_geo_layout_mods();
-				gfx_rt64_save_texture_mods();
-				gfx_rt64_save_level_lights();
-			}
-		}
-
-		onkeydown(wParam, lParam);
-		break;
-	case WM_KEYUP:
-		onkeyup(wParam, lParam);
-		break;
-	case WM_INPUT: {
-		// Skip mouselook events if inspector is active.
-		if (RT64.renderInspectorActive) {
-			break;
-		}
-		
-		UINT dwSize = sizeof(RAWINPUT);
-		static BYTE lpb[sizeof(RAWINPUT)];
-		GetRawInputData((HRAWINPUT)(lParam), RID_INPUT, lpb, &dwSize, sizeof(RAWINPUTHEADER));
-		RAWINPUT* raw = (RAWINPUT*)(lpb);
-		if (raw->header.dwType == RIM_TYPEMOUSE) {
-			RT64.deltaMouseX += raw->data.mouse.lLastX;
-			RT64.deltaMouseY += raw->data.mouse.lLastY;
-
-			// Detect mouse button states if any of them were enabled.
-			if (raw->data.mouse.usButtonFlags & 0x3FF) {
-				for (unsigned short b = 0; b < MAX_MOUSE_BUTTONS; b++) {
-					if (raw->data.mouse.usButtonFlags & MouseButtonFlags[b][0]) {
-						RT64.mouseButtons |= (1 << b);
-					}
-					else if (raw->data.mouse.usButtonFlags & MouseButtonFlags[b][1]) {
-						RT64.mouseButtons &= ~(1 << b);
-					}
-				}
-			}
-    	}
-
-		break;
-	}
-	case WM_PAINT: {
-		LARGE_INTEGER ElapsedMicroseconds;
-
-		// Apply configuration changes.
-		if (configWindow.settings_changed) {
-			gfx_rt64_apply_config();
-			configWindow.settings_changed = false;
-		}
-
-		if (!RT64.pauseMode && (RT64.run_one_game_iter != nullptr)) {
-			// Run one game iteration.
-			LARGE_INTEGER GameStartTime, GameEndTime;
-			GameStartTime = gfx_rt64_profile_marker();
-			RT64.run_one_game_iter();
-			GameEndTime = gfx_rt64_profile_marker();
-			ElapsedMicroseconds = gfx_rt64_profile_delta(GameStartTime, GameEndTime);
-
-			// Print the time it took to process the frame.
-			if (RT64.renderInspectorActive) {
-				const std::lock_guard<std::mutex> lock(RT64.renderInspectorMutex);
-				char gameDeltaTimeMsg[64];
-				sprintf(gameDeltaTimeMsg, "GAME: %.3f ms\n", ElapsedMicroseconds.QuadPart / 1000.0);
-				RT64.renderInspectorMessages.clear();
-				RT64.renderInspectorMessages.push_back(std::string(gameDeltaTimeMsg));
-
-				char marioMessage[256] = "";
-				char levelMessage[256] = "";
-				int levelIndex = gfx_rt64_get_level_index();
-				int areaIndex = gfx_rt64_get_area_index();
-				sprintf(marioMessage, "Mario pos: %.1f %.1f %.1f", gMarioState->pos[0], gMarioState->pos[1], gMarioState->pos[2]);
-				sprintf(levelMessage, "Level #%d Area #%d", levelIndex, areaIndex);
-				RT64.renderInspectorMessages.push_back(std::string(marioMessage));
-				RT64.renderInspectorMessages.push_back(std::string(levelMessage));
-				RT64.renderInspectorMessages.push_back(std::string("F1: Toggle inspectors"));
-				RT64.renderInspectorMessages.push_back(std::string("F5: Save all configuration"));
-			}
-		}
-
-		if (!RT64.turboMode) {
-			// Try to maintain the fixed framerate.
-			const int FixedFramerate = 30;
-			const int FramerateMicroseconds = 1000000 / FixedFramerate;
-			int cyclesWaited = 0;
-
-			// Sleep if possible to avoid busy waiting too much.
-			RT64.EndingTime = gfx_rt64_profile_marker();
-			ElapsedMicroseconds = gfx_rt64_profile_delta(RT64.StartingTime, RT64.EndingTime);
-			int SleepMs = ((FramerateMicroseconds - ElapsedMicroseconds.QuadPart) - 500) / 1000;
-			if (SleepMs > 0) {
-				Sleep(SleepMs);
-				cyclesWaited++;
-			}
-
-			// Busy wait to reach the desired framerate.
-			do {
-				RT64.EndingTime = gfx_rt64_profile_marker();
-				ElapsedMicroseconds = gfx_rt64_profile_delta(RT64.StartingTime, RT64.EndingTime);
-				cyclesWaited++;
-			} while (ElapsedMicroseconds.QuadPart < FramerateMicroseconds);
-
-			RT64.StartingTime = RT64.EndingTime;
-
-			// Drop the next frame if we didn't wait any cycles.
-			RT64.dropNextFrame = (cyclesWaited == 1);
-		}
-
-		return 0;
-	}
-	default:
-		return DefWindowProc(hWnd, message, wParam, lParam);
-	}
-
-	return 0;
-}
+// VULKAN PORT: gfx_rt64_wnd_proc removed. The 173 lines of Win32 message
+// handling it contained are provided by the game's SDL window manager,
+// which the OpenGL backends already use on Linux.
 
 static void gfx_rt64_error_message(const char *window_title, const char *error_message) {
-	MessageBox(NULL, error_message, window_title, MB_OK | MB_ICONEXCLAMATION);
+	SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, window_title, error_message,
+		gfx_sdl_get_window());
+	fprintf(stderr, "RT64: %s\n", error_message);
 }
 
 static void gfx_rt64_wapi_init(const char *window_title) {
 	// Setup library.
 	RT64.lib = RT64_LoadLibrary();
 	if (RT64.lib.handle == 0) {
+#if defined(_WIN32) || defined(_WIN64)
 		gfx_rt64_error_message(window_title, "Failed to load library. Please make sure rt64lib.dll and dxil.dll are placed next to the game's executable and are up to date.");
+#else
+		gfx_rt64_error_message(window_title,
+			"Failed to load librt64.so.\n\n"
+			"It must sit next to the game executable, or be named by the "
+			"RT64_LIB environment variable. Build it with:\n\n"
+			"    cd rt64-vk && cmake -S . -B build "
+			"-DCMAKE_BUILD_TYPE=Release && cmake --build build\n\n"
+			"The reason dlopen gave is printed on the console above.");
+#endif
 		abort();
 	}
 
-	// Register window class.
-	WNDCLASS wc;
-	memset(&wc, 0, sizeof(WNDCLASS));
-	wc.lpfnWndProc = gfx_rt64_wnd_proc;
-	wc.hInstance = GetModuleHandle(0);
-	wc.hbrBackground = (HBRUSH)(COLOR_BACKGROUND);
-	wc.lpszClassName = "RT64";
-	RegisterClass(&wc);
+	// VULKAN PORT: the game's SDL window manager creates the window, with a
+	// Vulkan surface instead of a GL context (see gfx_sdl2.c). RT64 no longer
+	// registers a window class or runs its own message loop, which also means
+	// fullscreen, vsync and keyboard handling behave exactly as they do for
+	// the OpenGL backends.
+	gfx_sdl.init(window_title);
+	RT64.window = gfx_sdl_get_window();
 
-	// Create window.
-	const int Width = 1280;
-	const int Height = 720;
-	RECT rect;
-	UINT dwStyle = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
-	rect.left = (GetSystemMetrics(SM_CXSCREEN) - Width) / 2;
-	rect.top = (GetSystemMetrics(SM_CYSCREEN) - Height) / 2;
-	rect.right = rect.left + Width;
-	rect.bottom = rect.top + Height;
-	AdjustWindowRectEx(&rect, dwStyle, 0, 0);
-	RT64.hwnd = CreateWindow(wc.lpszClassName, window_title, dwStyle, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, 0, 0, wc.hInstance, NULL);
 
 	// Start timers.
 	QueryPerformanceFrequency(&RT64.Frequency);
@@ -680,17 +490,31 @@ static void gfx_rt64_wapi_init(const char *window_title) {
     CPUFrame->fovRadians = 0.75f;
 	
 	// Apply loaded configuration.
-	gfx_rt64_apply_config();
+	gfx_rt64_apply_window_settings();
 
 	// Setup device.
-	RT64.device = RT64.lib.CreateDevice(RT64.hwnd);
+	RT64.device = RT64.lib.CreateDevice(RT64.window);
 	if (RT64.device == nullptr) {
 		gfx_rt64_error_message(window_title, RT64.lib.GetLastError());
 		gfx_rt64_error_message(window_title, 
+#if defined(_WIN32) || defined(_WIN64)
 			"Failed to initialize RT64.\n\n"
 			"Please make sure your GPU drivers are up to date and the Direct3D 12.1 feature level is supported.\n\n"
 			"Windows 10 version 2004 or newer is also required for this feature level to work properly.\n\n"
-			"If you're a mobile user, make sure that the high performance device is selected for this application on your system's settings.");
+			"If you're a mobile user, make sure that the high performance device is selected for this application on your system's settings."
+#else
+			// VULKAN PORT: the Direct3D wording would send a Linux user hunting
+			// for the wrong thing entirely.
+			"Failed to initialize RT64.\n\n"
+			"RT64 needs a GPU with Vulkan ray tracing support: the "
+			"VK_KHR_ray_tracing_pipeline, VK_KHR_acceleration_structure and "
+			"VK_KHR_ray_query extensions.\n\n"
+			"On AMD this means RADV or amdvlk with an RDNA2 or newer card; on "
+			"NVIDIA, the proprietary driver with Turing or newer.\n\n"
+			"Also make sure librt64.so is next to the executable and that the "
+			"compiled shaders are in ./shaders (or set RT64_SHADER_DIR)."
+#endif
+			);
 		
 		abort();
 	}
@@ -711,26 +535,27 @@ static void gfx_rt64_wapi_set_keyboard_callbacks(bool (*on_key_down)(int scancod
 	RT64.on_key_down = on_key_down;
     RT64.on_key_up = on_key_up;
     RT64.on_all_keys_up = on_all_keys_up;
+	// VULKAN PORT: hand them to the SDL window manager, which is what actually
+	// receives key events now.
+	gfx_sdl.set_keyboard_callbacks(on_key_down, on_key_up, on_all_keys_up);
 }
 
 static void gfx_rt64_wapi_main_loop(void (*run_one_game_iter)(void)) {
 	RT64.run_one_game_iter = run_one_game_iter;
-
-    MSG msg;
-    while (GetMessage(&msg, nullptr, 0, 0)) {
-        TranslateMessage(&msg);
-        DispatchMessage(&msg);
-    }
+	// VULKAN PORT: the Win32 GetMessage/DispatchMessage pump is replaced by
+	// gfx_sdl's loop, which already drives frame pacing and events for the
+	// OpenGL backends.
+	gfx_sdl.main_loop(run_one_game_iter);
 }
 
 static void gfx_rt64_wapi_get_dimensions(uint32_t *width, uint32_t *height) {
-	RECT rect;
-	GetClientRect(RT64.hwnd, &rect);
-	*width = rect.right - rect.left;
-	*height = rect.bottom - rect.top;
+	// VULKAN PORT: delegated, so the RT64 and OpenGL paths report identically.
+	gfx_sdl.get_dimensions(width, height);
 }
 
 static void gfx_rt64_wapi_handle_events(void) {
+	// VULKAN PORT: gfx_sdl pumps SDL events and applies configWindow changes.
+	gfx_sdl.handle_events();
 }
 
 static bool gfx_rt64_wapi_start_frame(void) {
@@ -880,6 +705,26 @@ static void gfx_rt64_rapi_process_mesh(float buf_vbo[], size_t buf_vbo_len, size
 	void *vertexBuffer = buf_vbo;
 	const unsigned int vertexFixedStride = 16 + 12;
 	vertexStride = vertexFixedStride + (useTexture ? 8 : 0) + numInputs * (useAlpha ? 16 : 12);
+	if (((buf_vbo_len * 4) % vertexStride) != 0) {
+		// A bare assert here says only that the two disagree, not which term
+		// is wrong. Print both sides once so the mismatch is identifiable.
+		static bool reported = false;
+		if (!reported) {
+			reported = true;
+			fprintf(stderr,
+				"RT64 vertex layout mismatch:\n"
+				"  buf_vbo_len   = %zu floats (%zu bytes)\n"
+				"  vertexStride  = %u bytes\n"
+				"  remainder     = %u\n"
+				"  useTexture=%d numInputs=%d useAlpha=%d shaderId=0x%X\n"
+				"  implied floats/vertex = %.3f\n",
+				buf_vbo_len, buf_vbo_len * 4, vertexStride,
+				(unsigned)((buf_vbo_len * 4) % vertexStride),
+				(int)useTexture, numInputs, (int)useAlpha,
+				RT64.shaderProgram->shaderId,
+				(double)buf_vbo_len / (double)(buf_vbo_num_tris * 3));
+		}
+	}
 	assert(((buf_vbo_len * 4) % vertexStride) == 0);
 
 	vertexCount = (buf_vbo_len * 4) / vertexStride;
@@ -1134,7 +979,9 @@ static void gfx_rt64_rapi_start_frame(void) {
 	// Determine cursor visibility base on the current camera mouselook support and the inspector.
 	bool newCursorVisible = (!RT64.isFullScreen && !RT64.mouselookEnabled) || (RT64.renderInspectorActive);
 	if (RT64.cursorVisible != newCursorVisible) {
-		ShowCursor(newCursorVisible);
+		// VULKAN PORT: SDL_ShowCursor takes SDL_ENABLE/SDL_DISABLE rather than
+		// Win32's reference-counted BOOL.
+		SDL_ShowCursor(newCursorVisible ? SDL_ENABLE : SDL_DISABLE);
 		RT64.cursorVisible = newCursorVisible;
 	}
 	
@@ -1870,10 +1717,11 @@ void gfx_rt64_render_thread_preprocess_frames(GameFrame *curFrame, GameFrame *pr
 	if (RT64.renderInspectorActive) {
 		const std::lock_guard<std::mutex> pickLock(RT64.pickTextureMutex);
 		if (RT64.pickTexture) {
-			POINT cursorPos = {};
-			GetCursorPos(&cursorPos);
-			ScreenToClient(RT64.hwnd, &cursorPos);
-			RT64_INSTANCE *instance = RT64.lib.GetViewRaytracedInstanceAt(RT64.view, cursorPos.x, cursorPos.y);
+			// VULKAN PORT: SDL_GetMouseState is already window-relative, so
+			// the GetCursorPos + ScreenToClient pair collapses to one call.
+			int cursorX = 0, cursorY = 0;
+			SDL_GetMouseState(&cursorX, &cursorY);
+			RT64_INSTANCE *instance = RT64.lib.GetViewRaytracedInstanceAt(RT64.view, cursorX, cursorY);
 			if (instance != nullptr) {
 				pickSearchInstance = instance;
 			}
@@ -2182,10 +2030,7 @@ struct GfxRenderingAPI gfx_rt64_rapi = {
     gfx_rt64_rapi_shutdown
 };
 
-#else
+// VULKAN PORT: the "#error RT64 is only supported on Windows" branch that used
+// to close this file is gone along with the platform guard it belonged to.
 
-#error "RT64 is only supported on Windows"
-
-#endif // _WIN32
-
-#endif
+#endif // RAPI_RT64

@@ -64,7 +64,14 @@ static void controller_rt64_api_read(OSContPad *pad) {
 }
 
 static void controller_rt64_api_shutdown(void) {
+#if defined(_WIN32) || defined(_WIN64)
     ClipCursor(NULL);
+#else
+    // VULKAN PORT: releases the Win32 cursor clip. SDL's equivalent confinement
+    // is relative mouse mode, which this backend never enables, so there is
+    // nothing to undo.
+    SDL_SetRelativeMouseMode(SDL_FALSE);
+#endif
 }
 
 static u32 controller_rt64_api_rawkey(void) {
@@ -108,8 +115,9 @@ static void controller_rt64_api_bind(void) {
 }
 
 static void controller_rt64_api_init(void) {
-    assert(RT64.hwnd != NULL);
+    assert(RT64.window != NULL);
 
+#if defined(_WIN32) || defined(_WIN64)
     // Register mouse as raw device for WM_INPUT.
     RAWINPUTDEVICE Rid[1];
 	Rid[0].usUsagePage = HID_USAGE_PAGE_GENERIC; 
@@ -117,6 +125,12 @@ static void controller_rt64_api_init(void) {
 	Rid[0].dwFlags = RIDEV_INPUTSINK;   
 	Rid[0].hwndTarget = RT64.hwnd;
 	RegisterRawInputDevices(Rid, 1, sizeof(Rid[0]));
+#else
+    // VULKAN PORT: SDL's relative mouse mode is the equivalent of Win32 raw
+    // input for this purpose — it reports deltas without the cursor hitting
+    // screen edges, which is all the inspector camera needs.
+    SDL_SetRelativeMouseMode(SDL_FALSE);
+#endif
 
     controller_rt64_api_bind();
 }

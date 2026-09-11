@@ -20,6 +20,11 @@ class DeviceVK;
 
 class TextureVK {
 public:
+    /* Index into the shaders' gTextures[512] array. The game passes textures
+       around as pointers, but the shader addresses them by index through
+       MaterialProperties, so something has to assign and translate. */
+    int arrayIndex = -1;
+
     explicit TextureVK(DeviceVK *device);
     ~TextureVK();
 

@@ -27,6 +27,57 @@ ifeq ($(WINDOWS_BUILD),1)
         done;
 	
     RT64_BUILD_BIN := $(shell $(call RT64_COPY_LIB))
+else
+    # VULKAN PORT: the Linux equivalent. librt64.so is dlopen'd at runtime and
+    # the compiled SPIR-V is read from disk, so both have to sit beside the
+    # executable — and `rm -rf build` wipes them, which is easy to do when
+    # switching RENDER_API. Copying them as part of the build means they cannot
+    # go missing.
+    # Build the renderer as part of the normal build. Forgetting to rebuild it
+    # by hand produces a stale librt64.so that behaves like a mysterious
+    # runtime bug rather than an out-of-date artifact.
+    RT64_VK_BUILD_DIR := ./rt64-vk/build
+    RT64_VK_LIB := $(RT64_VK_BUILD_DIR)/librt64.so
+
+.PHONY: rt64-vk-build rt64-vk-clean rt64-vk-stage rt64-vk-configure-build
+rt64-vk-build:
+	@if [ ! -f ./rt64-vk/CMakeLists.txt ]; then \
+	    echo "rt64-vk/ not present; skipping renderer build"; \
+	elif [ ! -x ./rt64-vk/third_party/dxc/bin/dxc ] && [ -z "$$RT64_DXC_EXECUTABLE" ]; then \
+	    echo "RT64: fetching DXC (one time; it is not packaged for most distros)"; \
+	    (cd ./rt64-vk && ./tools/get_dxc.sh) && $(MAKE) -f Makefile_rt64 rt64-vk-configure-build; \
+	else \
+	    $(MAKE) --no-print-directory rt64-vk-configure-build; \
+	fi
+
+rt64-vk-configure-build:
+	@cmake -S ./rt64-vk -B $(RT64_VK_BUILD_DIR) -DCMAKE_BUILD_TYPE=Release \
+	    $(if $(RT64_DXC_EXECUTABLE),-DRT64_DXC_EXECUTABLE=$(RT64_DXC_EXECUTABLE),) > /dev/null && \
+	    cmake --build $(RT64_VK_BUILD_DIR) --target rt64 -j$(shell nproc)
+
+rt64-vk-clean:
+	@rm -rf $(RT64_VK_BUILD_DIR)
+
+    RT64_COPY_SO := \
+        if [ -f $(RT64_VK_BUILD_DIR)/librt64.so ]; then \
+            cp -f $(RT64_VK_BUILD_DIR)/librt64.so $(BUILD_DIR)/; \
+        fi; \
+        if [ -f ./rt64-vk/third_party/dxc/lib/libdxcompiler.so ]; then \
+            cp -f ./rt64-vk/third_party/dxc/lib/libdxcompiler.so $(BUILD_DIR)/; \
+        fi; \
+        if [ -d $(RT64_VK_BUILD_DIR)/shaders ]; then \
+            mkdir -p $(BUILD_DIR)/shaders; \
+            cp -f $(RT64_VK_BUILD_DIR)/shaders/*.spv $(BUILD_DIR)/shaders/ 2>/dev/null; \
+        fi;
+
+    # Staging must be a rule, not a $(shell) at parse time: parse time is
+    # before the renderer has been built, so the copy would take whatever
+    # librt64.so happened to be there from a previous run — which is exactly
+    # the stale-library trap this is meant to remove.
+rt64-vk-stage: rt64-vk-build | $(BUILD_DIR)
+	@$(call RT64_COPY_SO)
+
+    RT64_BUILD_BIN :=
 endif
 
 # Render96 - Compilation macro

@@ -227,7 +227,14 @@ static bool DynOS_Gfx_CacheTexture(THN **aOutput, DataNode<TexData> *aNode, s32 
     // Add new texture to cache
     (*_Node) = &aPool[(*aPoolPos)++];
     if (!(*_Node)->mAddr) {
+#ifndef GFX_REQUIRE_TEXTURE_NAME
         (*_Node)->mTexId = aGfxRApi->new_texture();
+#else
+        // RT64 identifies textures by name rather than by address, so the
+        // node pointer is passed as the name string. Dropping this branch
+        // leaves new_texture called with no name at all.
+        (*_Node)->mTexId = aGfxRApi->new_texture((const char *)(aNode));
+#endif
     }
     aGfxRApi->select_texture(aTile, (*_Node)->mTexId);
     aGfxRApi->set_sampler_parameters(aTile, false, 0, 0);

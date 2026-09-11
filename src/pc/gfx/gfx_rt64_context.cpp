@@ -2,6 +2,9 @@
 
 #include "gfx_rt64_context.h"
 
-RT64Context RT64;
+RT64Context &gfx_rt64_context(void) {
+	static RT64Context context;
+	return context;
+}
 
 #endif

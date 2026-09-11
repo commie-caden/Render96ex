@@ -3,11 +3,14 @@
 #include "rt64_global_params.h"
 #include "rt64_rt_pipeline_vk.h"
 #include "rt64_scene_vk.h"
+#include "rt64_texture_vk.h"
+#include "rt64_shader_vk.h"
 #include "rt64_shader_bindings.h"
 #include "rt64_descriptor_layout_vk.h"
 
 #include <cmath>
 #include <cstring>
+#include <fstream>
 
 namespace RT64 {
 
@@ -452,10 +455,39 @@ void perspectiveFovRH(float fovRadians, float aspect, float nearZ, float farZ,
 
 } /* namespace */
 
+void ViewVK::setDescription(const RT64_VIEW_DESC &desc) {
+    description = desc;
+    /* Only the fields the description owns. */
+    params.maxLights = desc.maxLights;
+    params.diSamples = desc.diSamples;
+    params.giSamples = desc.giSamples;
+    params.motionBlurStrength = desc.motionBlurStrength;
+    if (paramsBuffer.mapped != nullptr) {
+        std::memcpy(paramsBuffer.mapped, &params, sizeof(params));
+    }
+}
+
+void ViewVK::setSceneDescription(const RT64_SCENE_DESC &desc) {
+    auto copy3 = [](float *dst, const RT64_VECTOR3 &v) {
+        dst[0] = v.x; dst[1] = v.y; dst[2] = v.z;
+    };
+    copy3(params.ambientBaseColor, desc.ambientBaseColor);
+    copy3(params.ambientNoGIColor, desc.ambientNoGIColor);
+    copy3(params.eyeLightDiffuseColor, desc.eyeLightDiffuseColor);
+    copy3(params.eyeLightSpecularColor, desc.eyeLightSpecularColor);
+    copy3(params.skyDiffuseMultiplier, desc.skyDiffuseMultiplier);
+    copy3(params.skyHSLModifier, desc.skyHSLModifier);
+    params.skyYawOffset = desc.skyYawOffset;
+    params.giDiffuseStrength = desc.giDiffuseStrength;
+    params.giSkyStrength = desc.giSkyStrength;
+    if (paramsBuffer.mapped != nullptr) {
+        std::memcpy(paramsBuffer.mapped, &params, sizeof(params));
+    }
+}
+
 void ViewVK::setCamera(const float viewMatrix[16],
                        const float projectionMatrix[16], float fovRadians,
                        float nearDist, float farDist) {
-    GlobalParams params = {};
     std::memcpy(params.view, viewMatrix, sizeof(params.view));
 
     const float aspect = (height > 0) ? (float)width / (float)height : 1.0f;
@@ -514,11 +546,14 @@ void ViewVK::setCamera(const float viewMatrix[16],
         params.cameraW[i] = camW[i];
     }
 
-    params.diSamples = 1;
-    params.giSamples = 1;
-    params.maxLights = 1;
+    /* Sample counts and the light budget belong to the view description, not
+       the camera; leave whatever the game set. Seed sane values only if the
+       description has not arrived yet. */
+    if (params.maxLights == 0) { params.maxLights = 6; }
+    if (params.diSamples == 0) { params.diSamples = 1; }
+    if (params.giSamples == 0) { params.giSamples = 1; }
     params.skyPlaneTexIndex = -1;
-    params.frameCount = 1;
+    params.frameCount++;
 
     std::memcpy(paramsBuffer.mapped, &params, sizeof(params));
 }
@@ -816,6 +851,7 @@ bool ViewVK::updateDescriptorSet(VkDescriptorSetLayout layout,
     std::vector<VkDescriptorBufferInfo> bufferInfos;
     std::vector<VkBufferView> bufferViews;
     std::vector<VkWriteDescriptorSetAccelerationStructureKHR> asInfos;
+    std::vector<VkDescriptorImageInfo> arrayInfos;
     imageInfos.reserve(group->count);
     bufferInfos.reserve(group->count);
     bufferViews.reserve(group->count);
@@ -897,10 +933,33 @@ bool ViewVK::updateDescriptorSet(VkDescriptorSetLayout layout,
                 break;
             }
             case VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE: {
-                /* gTextures is PARTIALLY_BOUND, so leaving its 512 slots
-                   unwritten is legal as long as the shader does not read them.
-                   The single-image bindings still need something. */
-                if (b.count > 1) { continue; }
+                if (b.count > 1) {
+                    /* gTextures. PARTIALLY_BOUND makes leaving slots unwritten
+                       legal, but the shader does read them, so every occupied
+                       slot has to be written or materials sample nothing —
+                       which looks exactly like "textures are not loading". */
+                    if (textureArray == nullptr || textureArray->empty()) {
+                        continue;
+                    }
+                    arrayInfos.clear();
+                    arrayInfos.reserve(textureArray->size());
+                    uint32_t written = 0;
+                    for (const TextureVK *t : *textureArray) {
+                        if ((t == nullptr) || (t->getView() == VK_NULL_HANDLE)) {
+                            arrayInfos.push_back({ VK_NULL_HANDLE, placeholderView,
+                                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
+                        } else {
+                            arrayInfos.push_back({ VK_NULL_HANDLE, t->getView(),
+                                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
+                        }
+                        written++;
+                        if (written >= b.count) { break; }
+                    }
+                    write.descriptorCount = written;
+                    write.pImageInfo = arrayInfos.data();
+                    writes.push_back(write);
+                    continue;
+                }
                 imageInfos.push_back({ VK_NULL_HANDLE, placeholderView,
                                        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
                 write.pImageInfo = &imageInfos.back();
@@ -914,6 +973,105 @@ bool ViewVK::updateDescriptorSet(VkDescriptorSetLayout layout,
 
     vkUpdateDescriptorSets(vk, (uint32_t)writes.size(), writes.data(), 0,
                            nullptr);
+    return true;
+}
+
+} /* namespace RT64 */
+
+namespace RT64 {
+
+bool ViewVK::ensurePipeline(const std::vector<ShaderVK *> &materials,
+                            VkDescriptorSetLayout rayLayout,
+                            VkDescriptorSetLayout composeLayout,
+                            VkFormat colorFormat, const std::string &shaderDir,
+                            const RayTracingFunctions &fn,
+                            std::string &error) {
+    if (!pipelineDirty && materials.size() == builtMaterialCount) {
+        return true;
+    }
+
+    /* Rebuilding means new shader modules and a new SBT, so the old pipeline
+       goes first. Callers must have waited for the device to be idle. */
+    pipeline.destroy(device);
+    pipeline = RayTracingPipeline();
+
+    struct PassFile { RayPass pass; const char *name; };
+    static const PassFile kPasses[] = {
+        { RayPass::Primary,    "PrimaryRayGen" },
+        { RayPass::Direct,     "DirectRayGen" },
+        { RayPass::Indirect,   "IndirectRayGen" },
+        { RayPass::Reflection, "ReflectionRayGen" },
+        { RayPass::Refraction, "RefractionRayGen" },
+    };
+    std::vector<uint32_t> primary;
+    for (const PassFile &p : kPasses) {
+        std::vector<uint32_t> spirv;
+        std::ifstream file(shaderDir + "/" + p.name + ".spv",
+                           std::ios::binary | std::ios::ate);
+        if (!file) {
+            error = std::string("cannot open ") + p.name + ".spv in " + shaderDir;
+            return false;
+        }
+        const std::streamsize size = file.tellg();
+        spirv.resize((size_t)size / 4);
+        file.seekg(0);
+        file.read(reinterpret_cast<char *>(spirv.data()), size);
+        if (p.pass == RayPass::Primary) { primary = spirv; }
+        if (!pipeline.setRaygen(p.pass, spirv, p.name, error)) {
+            return false;
+        }
+    }
+    if (!pipeline.setMissShaders(primary, "SurfaceMiss", "ShadowMiss", error)) {
+        return false;
+    }
+    for (ShaderVK *material : materials) {
+        uint32_t first = 0;
+        if (!pipeline.addMaterial(*material, first, error)) {
+            return false;
+        }
+    }
+    if (!pipeline.build(device, fn, rayLayout, error)) {
+        return false;
+    }
+
+    if (!compose.create(device, composeLayout, colorFormat, shaderDir, error)) {
+        return false;
+    }
+
+    builtMaterialCount = (uint32_t)materials.size();
+    pipelineDirty = false;
+    return true;
+}
+
+bool ViewVK::render(VkCommandBuffer cmd, VkImageView swapchainView,
+                    VkExtent2D swapchainExtent, std::string &error) {
+    if (pipeline.getPipeline() == VK_NULL_HANDLE) {
+        error = "view rendered before its pipeline was built";
+        return false;
+    }
+
+    /* Once only: repeating the UNDEFINED transition each frame would discard
+       the accumulation buffers the temporal passes rely on. */
+    if (!targetsTransitioned) {
+        transitionTargets(cmd);
+        targetsTransitioned = true;
+    }
+
+    if (traceable) {
+        dispatchRayPasses(cmd, pipeline, *rayFunctions);
+    }
+
+    /* Same layout on both sides — the G-buffer stays GENERAL — but the ray
+       writes must be visible to the compose fragment shader. */
+    VkMemoryBarrier toSample = {};
+    toSample.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+    toSample.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+    toSample.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,
+                         VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0,
+                         1, &toSample, 0, nullptr, 0, nullptr);
+
+    compose.record(cmd, swapchainView, swapchainExtent);
     return true;
 }
 

@@ -49,7 +49,11 @@
 #define RATIO_X (gfx_current_dimensions.width / (2.0f * HALF_SCREEN_WIDTH))
 #define RATIO_Y (gfx_current_dimensions.height / (2.0f * HALF_SCREEN_HEIGHT))
 
+#ifdef GFX_MAX_BUFFERED
+#define MAX_BUFFERED GFX_MAX_BUFFERED
+#else
 #define MAX_BUFFERED 256
+#endif
 #define MAX_LIGHTS 2
 #define MAX_VERTICES 64
 
@@ -838,9 +842,11 @@ static void gfx_sp_vertex(size_t n_vertices, size_t dest_index, const Vtx *verti
             d->nz = vn->n[2] / 127.0f;
 #endif
             if (rsp.lights_changed) {
+#ifndef GFX_DISABLE_LIGHTING
                 for (int i = 0; i < rsp.current_num_lights - 1; i++) {
                     calculate_normal_dir(&rsp.current_lights[i], rsp.current_lights_coeffs[i]);
                 }
+#endif
                 static const Light_t lookat_x = {{0, 0, 0}, 0, {0, 0, 0}, 0, {127, 0, 0}, 0};
                 static const Light_t lookat_y = {{0, 0, 0}, 0, {0, 0, 0}, 0, {0, 127, 0}, 0};
                 calculate_normal_dir(&lookat_x, rsp.current_lookat_coeffs[0]);
@@ -871,12 +877,17 @@ static void gfx_sp_vertex(size_t n_vertices, size_t dest_index, const Vtx *verti
             
             if (rsp.geometry_mode & G_TEXTURE_GEN) {
                 float dotx = 0, doty = 0;
+#ifndef GFX_DISABLE_TEXTURE_GEN
                 dotx += vn->n[0] * rsp.current_lookat_coeffs[0][0];
                 dotx += vn->n[1] * rsp.current_lookat_coeffs[0][1];
                 dotx += vn->n[2] * rsp.current_lookat_coeffs[0][2];
                 doty += vn->n[0] * rsp.current_lookat_coeffs[1][0];
                 doty += vn->n[1] * rsp.current_lookat_coeffs[1][1];
                 doty += vn->n[2] * rsp.current_lookat_coeffs[1][2];
+#else
+                dotx = vn->n[0];
+                doty = vn->n[1];
+#endif
                 
                 U = (int32_t)((dotx / 127.0f + 1.0f) / 4.0f * rsp.texture_scaling_factor.s);
                 V = (int32_t)((doty / 127.0f + 1.0f) / 4.0f * rsp.texture_scaling_factor.t);
@@ -1118,6 +1129,11 @@ static void gfx_sp_tri1(uint8_t vtx1_idx, uint8_t vtx2_idx, uint8_t vtx3_idx) {
         buf_vbo[buf_vbo_len++] = v_arr[i]->y;
         buf_vbo[buf_vbo_len++] = z;
         buf_vbo[buf_vbo_len++] = w;
+#ifdef GFX_OUTPUT_NORMALS_TO_VBO
+        buf_vbo[buf_vbo_len++] = v_arr[i]->nx;
+        buf_vbo[buf_vbo_len++] = v_arr[i]->ny;
+        buf_vbo[buf_vbo_len++] = v_arr[i]->nz;
+#endif
         
         if (use_texture) {
             float u = (v_arr[i]->u - rdp.texture_tile.uls * 8) / 32.0f;

@@ -3,7 +3,17 @@
 
 ### Default target ###
 
+# RT64 needs its renderer built and staged before the game binary is usable.
+# Two sequenced sub-makes rather than prerequisites of one target: with -j,
+# prerequisites of the same target run in parallel, and the renderer must
+# finish first.
+ifeq ($(RENDER_API),RT64)
+default:
+	@$(MAKE) --no-print-directory rt64-vk-stage
+	@$(MAKE) --no-print-directory all
+else
 default: all
+endif
 
 ### Build Options ###
 
@@ -666,6 +676,13 @@ ZEROTERM = $(PYTHON) $(TOOLS_DIR)/zeroterm.py
 
 ######################## Targets #############################
 
+# The game dlopens librt64.so from beside the executable, so the renderer must
+# be built and staged before the binary is usable. Hooked here because $(EXE)
+# is only defined further up than the RT64 include.
+ifeq ($(RENDER_API),RT64)
+$(EXE): | rt64-vk-stage
+endif
+
 all: $(EXE)
 ifeq ($(TARGET_SWITCH),1)
 all: $(EXE).nro
@@ -709,13 +726,13 @@ $(BASEPACK_PATH): $(BASEPACK_LST)
   
 endif
 
-clean:
+clean: $(if $(filter RT64,$(RENDER_API)),rt64-vk-clean,)
 	$(RM) -r $(BUILD_DIR_BASE)
 
 cleantools:
 	$(MAKE) -s -C tools clean
 
-distclean:
+distclean: $(if $(filter RT64,$(RENDER_API)),rt64-vk-clean,)
 	$(RM) -r $(BUILD_DIR_BASE)
 	./extract_assets.py --clean
 

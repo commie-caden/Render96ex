@@ -1,4 +1,5 @@
 #include "rt64_scene_vk.h"
+#include "rt64_texture_vk.h"
 #include "rt64_device_vk.h"
 #include "rt64_mesh_vk.h"
 
@@ -6,6 +7,17 @@
 #include <cstring>
 
 namespace RT64 {
+
+/* These sizes are the structured buffer strides the shaders expect, and the
+   data is memcpy'd straight in. The shaders are compiled with
+   -fvk-use-dx-layout so their strides match C packing exactly; without it
+   LightInfo comes out 64 bytes against RT64_LIGHT's 60 and every field is
+   misread. Assert here so a change to the public structs is caught at compile
+   time rather than as wrong lighting. */
+static_assert(sizeof(RT64_LIGHT) == 60,
+              "RT64_LIGHT must stay 60 bytes to match the shader's LightInfo");
+static_assert(sizeof(RT64_MATERIAL) == 132,
+              "RT64_MATERIAL must stay 132 bytes to match MaterialProperties");
 
 VkTransformMatrixKHR toVkTransform(const RT64_MATRIX4 &m) {
     VkTransformMatrixKHR out = {};
@@ -131,7 +143,26 @@ bool SceneVK::updateInstanceBuffers(std::string &error) {
         std::memcpy(t.objectToWorldPrevious, desc.previousTransform.m,
                     sizeof(t.objectToWorldPrevious));
         transforms.push_back(t);
-        materials.push_back(desc.material);
+
+        /* The game hands us RT64_TEXTURE pointers, but MaterialProperties
+           addresses textures by index into gTextures. Nothing else performs
+           this translation, so without it every material samples slot -1 and
+           renders untextured. */
+        RT64_MATERIAL material = desc.material;
+        auto slotOf = [](RT64_TEXTURE *tex) -> int {
+            TextureVK *t = (TextureVK *)tex;
+            return (t != nullptr) ? t->arrayIndex : -1;
+        };
+        if (desc.diffuseTexture != nullptr) {
+            material.diffuseTexIndex = slotOf(desc.diffuseTexture);
+        }
+        if (desc.normalTexture != nullptr) {
+            material.normalTexIndex = slotOf(desc.normalTexture);
+        }
+        if (desc.specularTexture != nullptr) {
+            material.specularTexIndex = slotOf(desc.specularTexture);
+        }
+        materials.push_back(material);
     }
 
     packedInstances = (uint32_t)transforms.size();

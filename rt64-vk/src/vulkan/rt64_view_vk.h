@@ -13,7 +13,12 @@
 #include <string>
 #include <vector>
 
+#include "rt64_compose_vk.h"
 #include "rt64_raytracing_vk.h"
+#include "rt64_rt_pipeline_vk.h"
+
+#include "rt64/rt64.h"
+#include "rt64_global_params.h"
 
 namespace RT64 {
 
@@ -55,14 +60,53 @@ public:
        resize and whenever the scene's acceleration structure is rebuilt. */
     bool updateDescriptorSet(VkDescriptorSetLayout layout, std::string &error);
 
+    /* The device owns the texture list; the view writes it into gTextures. */
+    void setTextureArray(const std::vector<class TextureVK *> *textures) {
+        textureArray = textures;
+    }
+
     uint32_t getWidth() const { return width; }
     uint32_t getHeight() const { return height; }
     const std::vector<RenderTarget> &getTargets() const { return targets; }
     VkDescriptorSet getDescriptorSet() const { return descriptorSet; }
     const RenderTarget *findTarget(const std::string &name) const;
+    SceneVK *getScene() const { return scene; }
 
     /* Total bytes across every target, for reporting. */
     uint64_t totalBytes() const;
+
+    /* Per-frame rendering, driven by RT64_DrawDevice. Rebuilds whatever the
+       scene invalidated, traces the five passes, and composes into the given
+       swapchain image. */
+    void setRayFunctions(const RayTracingFunctions *fn) { rayFunctions = fn; }
+    bool render(VkCommandBuffer cmd, VkImageView swapchainView,
+                VkExtent2D swapchainExtent, std::string &error);
+
+    /* Applies the game's view settings — sample counts, light budget, motion
+       blur — to the persistent parameter block. */
+    void setDescription(const RT64_VIEW_DESC &desc);
+
+    /* The scene description carries ambient light, the camera-attached eye
+       light and the sky contribution. Without it a scene is lit only by its
+       explicit lights, which is why everything looked far darker than the
+       rasterised reference. */
+    void setSceneDescription(const RT64_SCENE_DESC &desc);
+
+    /* Tracing with no acceleration structure or an empty hit region reads
+       unwritten descriptors, which on RADV shows up as a GPUVM fault rather
+       than a clean error. */
+    void setTraceable(bool value) { traceable = value; }
+    RayTracingPipeline &getPipeline() { return pipeline; }
+    ComposePass &getCompose() { return compose; }
+
+    /* The pipeline embeds every material's hit groups, so it is rebuilt when
+       the material set changes rather than every frame. */
+    void invalidatePipeline() { pipelineDirty = true; }
+    bool ensurePipeline(const std::vector<class ShaderVK *> &materials,
+                        VkDescriptorSetLayout rayLayout,
+                        VkDescriptorSetLayout composeLayout,
+                        VkFormat colorFormat, const std::string &shaderDir,
+                        const RayTracingFunctions &fn, std::string &error);
 
     /* Fills gParams. The camera basis is what PrimaryRayGen builds rays from,
        so leaving it zeroed produces degenerate rays that hit nothing — which
@@ -116,6 +160,21 @@ private:
 
     VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
     VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
+
+    RayTracingPipeline pipeline;
+    ComposePass compose;
+    RT64_VIEW_DESC description = {};
+    /* Persistent: setCamera and setDescription each own a subset of the fields
+       and must not clobber the other's. Rebuilding the whole struct in
+       setCamera reset maxLights to 1 every frame, which starved the lighting
+       no matter what the game asked for. */
+    GlobalParams params = {};
+    bool pipelineDirty = true;
+    const RayTracingFunctions *rayFunctions = nullptr;
+    bool targetsTransitioned = false;
+    bool traceable = false;
+    const std::vector<class TextureVK *> *textureArray = nullptr;
+    uint32_t builtMaterialCount = 0;
 };
 
 } /* namespace RT64 */

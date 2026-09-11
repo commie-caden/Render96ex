@@ -2,6 +2,7 @@
 
 #include "area.h"
 #include "engine/math_util.h"
+#include "pc/gfx/gfx_pc.h"
 #include "geo_misc.h"
 #include "gfx_dimensions.h"
 #include "level_update.h"

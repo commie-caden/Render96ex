@@ -44,6 +44,7 @@ if(RT64_BUILD_STUB)
         src/vulkan/rt64_shader_vk.cpp
         src/vulkan/rt64_rt_pipeline_vk.cpp
         src/vulkan/rt64_compose_vk.cpp
+        src/vulkan/rt64_paths_vk.cpp
         src/vulkan/rt64_vma_impl.cpp
     )
 else()
@@ -243,6 +244,16 @@ target_link_libraries(rt64_payload_test PRIVATE rt64 Vulkan::Vulkan PkgConfig::S
 if(RT64_BUILD_SHADERS)
     add_dependencies(rt64_payload_test rt64_test_shaders)
 endif()
+
+# A known scene for judging shading and lights. Needs a GPU.
+add_executable(rt64_lighting_test tests/lighting_test.cpp)
+target_include_directories(rt64_lighting_test PRIVATE ${RT64_PUBLIC_INCLUDE})
+target_link_libraries(rt64_lighting_test PRIVATE rt64 PkgConfig::SDL2 ${CMAKE_DL_LIBS})
+
+# Renders using ONLY the public C ABI, exactly as the game does. Needs a GPU.
+add_executable(rt64_abi_render_test tests/abi_render_test.cpp)
+target_include_directories(rt64_abi_render_test PRIVATE ${RT64_PUBLIC_INCLUDE})
+target_link_libraries(rt64_abi_render_test PRIVATE rt64 PkgConfig::SDL2 ${CMAKE_DL_LIBS})
 
 # The whole pipeline, on screen: trace, compose, present. Needs a GPU.
 add_executable(rt64_render_test tests/render_test.cpp)
