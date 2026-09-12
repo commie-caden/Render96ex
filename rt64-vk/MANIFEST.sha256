@@ -85,7 +85,7 @@ eedc2abcb378a9a2257d55fa30c2cf08d9d1e649a427481a8ce55922ea9ebfaa  ../rt64-vk/src
 c303329ca3ef914d435eb07d74ce7f42b6d59f89c15a66d5a56630987777025a  ../rt64-vk/src/vulkan/rt64_swapchain_vk.h
 62ec8b86500f1574e721272ee66c72f695e5754d0af7b37a2812090355d7b0da  ../rt64-vk/src/vulkan/rt64_texture_vk.cpp
 db669a81f4811307811f59b2e66a3704781695add889b5632ad978c46b24d063  ../rt64-vk/src/vulkan/rt64_texture_vk.h
-c1bd0f8db9dd9640a614b554e52fac50c7f2188fbbed57d62baba9af8cae3123  ../rt64-vk/src/vulkan/rt64_view_vk.cpp
+f5277e2e302369e2791edf6f3da5171bfd4b83d8964f3de8adfa08ab101899b6  ../rt64-vk/src/vulkan/rt64_view_vk.cpp
 ff6b214bb8aac0c47d95aa85703d8c5e04a363abde6fa62849ea14f8c48fc6e5  ../rt64-vk/src/vulkan/rt64_view_vk.h
 0ae90811f296300ae093d54b5ea7ff65f2c11bbbe65fd95d5c95387ed43f4717  ../rt64-vk/src/vulkan/rt64_vma_impl.cpp
 b416b6456e16f212d0feebd24f0b682fa8fde37863123ee4d1259463226acbbb  ../rt64-vk/tests/abi_render_test.cpp

@@ -300,9 +300,12 @@ bool ViewVK::createPlaceholders(std::string &error) {
                       error)) {
         return false;
     }
-    GlobalParams params = {};
+    /* Initialise the member, not a local: a local here shadows it, so the
+       buffer and the struct the setters update would start out disagreeing. */
     params.resolution[0] = (float)width;
     params.resolution[1] = (float)height;
+    params.resolution[2] = (float)width;
+    params.resolution[3] = (float)height;
     std::memcpy(paramsBuffer.mapped, &params, sizeof(params));
 
     /* instanceMaterials is filled per frame from the scene's instances; a
@@ -511,10 +514,17 @@ void ViewVK::setCamera(const float viewMatrix[16],
     std::memcpy(params.prevViewI, params.viewI, sizeof(params.prevViewI));
     std::memcpy(params.prevViewProj, params.viewProj, sizeof(params.prevViewProj));
 
+    /* All four are DIMENSIONS, not reciprocals: xy is the display size and zw
+       the render-target size, which differ when resolution scaling is on.
+       Im3DGSLines divides a pixel size by .zw to reach NDC, and
+       computeRayDiffs divides by it to get per-pixel ray differentials.
+       Writing 1/width here made every gradient about width^2 too large, so
+       SampleGrad always landed on the smallest mip — every texture rendered
+       as its own average colour. */
     params.resolution[0] = (float)width;
     params.resolution[1] = (float)height;
-    params.resolution[2] = 1.0f / (float)width;
-    params.resolution[3] = 1.0f / (float)height;
+    params.resolution[2] = (float)width;
+    params.resolution[3] = (float)height;
     params.viewport[2] = (float)width;
     params.viewport[3] = (float)height;
 
