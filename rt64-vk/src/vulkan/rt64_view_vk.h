@@ -92,6 +92,10 @@ public:
        rasterised reference. */
     void setSceneDescription(const RT64_SCENE_DESC &desc);
 
+    /* The sky is sampled from gTextures like any other texture; the shaders
+       just need to know which slot, or -1 for none. */
+    void setSkyPlaneIndex(int index);
+
     /* Tracing with no acceleration structure or an empty hit region reads
        unwritten descriptors, which on RADV shows up as a GPUVM fault rather
        than a clean error. */
@@ -168,7 +172,14 @@ private:
        and must not clobber the other's. Rebuilding the whole struct in
        setCamera reset maxLights to 1 every frame, which starved the lighting
        no matter what the game asked for. */
-    GlobalParams params = {};
+    /* Zero-initialised except skyPlaneTexIndex: 0 is a valid texture slot, so
+       the default has to be an explicit "no sky" or the first texture the game
+       loads gets sampled as the sky plane. */
+    GlobalParams params = [] {
+        GlobalParams p = {};
+        p.skyPlaneTexIndex = -1;
+        return p;
+    }();
     bool pipelineDirty = true;
     const RayTracingFunctions *rayFunctions = nullptr;
     bool targetsTransitioned = false;

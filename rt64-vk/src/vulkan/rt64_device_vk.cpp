@@ -471,4 +471,12 @@ DeviceVK::~DeviceVK() {
     if (instance != VK_NULL_HANDLE)  { vkDestroyInstance(instance, nullptr); }
 }
 
+
+bool DeviceVK::supportsSampledFormat(VkFormat format) const {
+    VkFormatProperties props = {};
+    vkGetPhysicalDeviceFormatProperties(physicalDevice, format, &props);
+    return (props.optimalTilingFeatures &
+            VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT) != 0;
+}
+
 } /* namespace RT64 */

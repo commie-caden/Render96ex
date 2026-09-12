@@ -467,6 +467,13 @@ void ViewVK::setDescription(const RT64_VIEW_DESC &desc) {
     }
 }
 
+void ViewVK::setSkyPlaneIndex(int index) {
+    params.skyPlaneTexIndex = index;
+    if (paramsBuffer.mapped != nullptr) {
+        std::memcpy(paramsBuffer.mapped, &params, sizeof(params));
+    }
+}
+
 void ViewVK::setSceneDescription(const RT64_SCENE_DESC &desc) {
     auto copy3 = [](float *dst, const RT64_VECTOR3 &v) {
         dst[0] = v.x; dst[1] = v.y; dst[2] = v.z;
@@ -552,7 +559,6 @@ void ViewVK::setCamera(const float viewMatrix[16],
     if (params.maxLights == 0) { params.maxLights = 6; }
     if (params.diSamples == 0) { params.diSamples = 1; }
     if (params.giSamples == 0) { params.giSamples = 1; }
-    params.skyPlaneTexIndex = -1;
     params.frameCount++;
 
     std::memcpy(paramsBuffer.mapped, &params, sizeof(params));

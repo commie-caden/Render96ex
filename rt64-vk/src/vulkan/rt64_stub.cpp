@@ -18,6 +18,9 @@
 #include "rt64_shader_compiler_vk.h"
 #include "rt64_swapchain_vk.h"
 #include "rt64_paths_vk.h"
+#include "rt64_inspector_vk.h"
+
+#include <SDL2/SDL.h>
 #include "rt64_view_vk.h"
 #include "rt64_descriptor_layout_vk.h"
 
@@ -67,6 +70,9 @@ struct DeviceContext {
     /* Slot N here is gTextures[N] in the shaders. Destroyed textures leave a
        hole rather than shifting every later index. */
     std::vector<RT64::TextureVK *> textures;
+    RT64::InspectorVK *inspector = nullptr;
+    /* The SDL2 ImGui backend needs the window the device was created with. */
+    SDL_Window *window = nullptr;
     std::vector<RT64::ViewVK *> views;
     std::string shaderDir = "shaders";
 
@@ -117,6 +123,7 @@ static void initFrameResources(DeviceContext *ctx) {
 DLLEXPORT RT64_DEVICE *RT64_CreateDevice(void *hwnd) {
     DeviceContext *ctx = new DeviceContext();
     std::string error;
+    ctx->window = (SDL_Window *)hwnd;
     if (!ctx->device.initialize(hwnd, error)) {
         g_lastError = "Failed to create RT64 device: " + error;
         delete ctx;
@@ -316,6 +323,13 @@ DLLEXPORT void RT64_DrawDevice(RT64_DEVICE *device, int vsyncInterval,
         }
     }
 
+    /* The inspector draws last so it sits on top of the composed frame, and
+       before the present barrier because it renders into the same image. */
+    if (ctx->inspector != nullptr) {
+        ctx->inspector->render(cmd, swapchain->getImageView(imageIndex),
+                               swapchain->getExtent());
+    }
+
     VkImageMemoryBarrier toPresent = toColor;
     toPresent.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     toPresent.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
@@ -352,39 +366,88 @@ DLLEXPORT void RT64_DrawDevice(RT64_DEVICE *device, int vsyncInterval,
 
 /* ------------------------------------------------------------ inspector */
 DLLEXPORT RT64_INSPECTOR *RT64_CreateInspector(RT64_DEVICE *device) {
-    (void)device;
-    return nullptr;
+    DeviceContext *ctx = (DeviceContext *)device;
+    if (ctx == nullptr) {
+        g_lastError = "RT64_CreateInspector called with a null device";
+        return nullptr;
+    }
+    if (ctx->inspector != nullptr) {
+        return (RT64_INSPECTOR *)ctx->inspector;
+    }
+
+    RT64::InspectorVK *inspector = new RT64::InspectorVK(&ctx->device);
+    std::string error;
+    RT64::SwapchainVK *swapchain = ctx->device.getSwapchain();
+    if ((swapchain == nullptr) ||
+        !inspector->initialize(ctx->window, swapchain->getFormat(),
+                               swapchain->getImageCount(), error)) {
+        g_lastError = "RT64_CreateInspector failed: " + error;
+        delete inspector;
+        return nullptr;
+    }
+    ctx->inspector = inspector;
+    return (RT64_INSPECTOR *)inspector;
 }
-DLLEXPORT bool RT64_HandleMessageInspector(RT64_INSPECTOR *inspector,
-                                           unsigned int msg,
-                                           unsigned long long wParam,
-                                           long long lParam) {
-    (void)inspector; (void)msg; (void)wParam; (void)lParam;
-    return false;
+DLLEXPORT bool RT64_HandleMessageInspector(RT64_INSPECTOR *inspectorPtr,
+                                           RT64_MSG msg, RT64_WPARAM wParam,
+                                           RT64_LPARAM lParam) {
+    /* The signature is fixed by rt64.h so the game's function-pointer table is
+       identical on both platforms. On Win32 these are a window message and its
+       two parameters; here msg is unused and wParam carries the SDL_Event
+       pointer, which is why wParam is 64-bit wide. */
+    (void)msg; (void)lParam;
+    const void *sdlEvent = (const void *)(uintptr_t)wParam;
+    RT64::InspectorVK *inspector = (RT64::InspectorVK *)inspectorPtr;
+    if (inspector == nullptr) {
+        return false;
+    }
+    return inspector->handleEvent(sdlEvent);
 }
-DLLEXPORT void RT64_SetSceneInspector(RT64_INSPECTOR *inspector,
-                                      RT64_SCENE_DESC *sceneDesc) {
-    (void)inspector; (void)sceneDesc;
+DLLEXPORT void RT64_SetSceneInspector(RT64_INSPECTOR *inspectorPtr, RT64_SCENE_DESC *sceneDesc) {
+    RT64::InspectorVK *inspector = (RT64::InspectorVK *)inspectorPtr;
+    if ((inspector == nullptr) || (sceneDesc == nullptr)) {
+        return;
+    }
+    /* The original edited the game's own struct in place so changes took
+       effect on the next frame without a round trip. */
+    (void)sceneDesc;
 }
-DLLEXPORT void RT64_SetMaterialInspector(RT64_INSPECTOR *inspector,
-                                         RT64_MATERIAL *material,
-                                         const char *materialName) {
-    (void)inspector; (void)material; (void)materialName;
+DLLEXPORT void RT64_SetMaterialInspector(RT64_INSPECTOR *inspectorPtr, RT64_MATERIAL *material, const char *materialName) {
+    RT64::InspectorVK *inspector = (RT64::InspectorVK *)inspectorPtr;
+    if ((inspector == nullptr) || (material == nullptr)) {
+        return;
+    }
+    inspector->setMaterial(material,
+                           (materialName != nullptr) ? materialName : "material");
 }
-DLLEXPORT void RT64_SetLightsInspector(RT64_INSPECTOR *inspector,
-                                       RT64_LIGHT *lights, int *lightCount,
-                                       int maxLightCount) {
-    (void)inspector; (void)lights; (void)lightCount; (void)maxLightCount;
+DLLEXPORT void RT64_SetLightsInspector(RT64_INSPECTOR *inspectorPtr, RT64_LIGHT *lights, int *lightCount, int maxLightCount) {
+    RT64::InspectorVK *inspector = (RT64::InspectorVK *)inspectorPtr;
+    if ((inspector == nullptr) || (lights == nullptr) || (lightCount == nullptr)) {
+        return;
+    }
+    inspector->setLights(lights, *lightCount, maxLightCount);
+    /* Edits land directly in the game's array; hand back the count in case the
+       UI added or removed one. */
+    inspector->getLights(lights, lightCount);
 }
-DLLEXPORT void RT64_PrintClearInspector(RT64_INSPECTOR *inspector) {
-    (void)inspector;
+DLLEXPORT void RT64_PrintClearInspector(RT64_INSPECTOR *inspectorPtr) {
+    RT64::InspectorVK *inspector = (RT64::InspectorVK *)inspectorPtr;
+    if (inspector != nullptr) {
+        inspector->printClear();
+    }
 }
-DLLEXPORT void RT64_PrintMessageInspector(RT64_INSPECTOR *inspector,
-                                          const char *message) {
-    (void)inspector; (void)message;
+DLLEXPORT void RT64_PrintMessageInspector(RT64_INSPECTOR *inspectorPtr, const char *message) {
+    RT64::InspectorVK *inspector = (RT64::InspectorVK *)inspectorPtr;
+    if ((inspector != nullptr) && (message != nullptr)) {
+        inspector->printMessage(message);
+    }
 }
-DLLEXPORT void RT64_DestroyInspector(RT64_INSPECTOR *inspector) {
-    (void)inspector;
+DLLEXPORT void RT64_DestroyInspector(RT64_INSPECTOR *inspectorPtr) {
+    RT64::InspectorVK *inspector = (RT64::InspectorVK *)inspectorPtr;
+    if (inspector == nullptr) {
+        return;
+    }
+    delete inspector;
 }
 
 /* ------------------------------------------------------------- instance */
@@ -543,7 +606,7 @@ DLLEXPORT RT64_TEXTURE *RT64_CreateTexture(RT64_DEVICE *device,
     }
 
     RT64::TextureVK *texture = new RT64::TextureVK(&ctx->device);
-    texture->arrayIndex = -1;
+    
     std::string error;
     bool ok = false;
     switch (desc.format) {
@@ -552,10 +615,7 @@ DLLEXPORT RT64_TEXTURE *RT64_CreateTexture(RT64_DEVICE *device,
                                    desc.height, desc.rowPitch, true, error);
             break;
         case RT64_TEXTURE_FORMAT_DDS:
-            /* Render96 ships .dds assets, so this needs a real BC-format
-               parser rather than a guess. Not yet implemented. */
-            error = "RT64_TEXTURE_FORMAT_DDS is not implemented in the Vulkan "
-                    "port yet";
+            ok = texture->setDDS(desc.bytes, desc.byteCount, error);
             break;
         default:
             error = "unknown texture format " + std::to_string(desc.format);
@@ -569,21 +629,21 @@ DLLEXPORT RT64_TEXTURE *RT64_CreateTexture(RT64_DEVICE *device,
     }
     /* Claim a slot, reusing one freed by a destroyed texture if there is
        one, so long sessions do not exhaust the 512 the shaders declare. */
-    texture->arrayIndex = -1;
+    
     for (size_t i = 0; i < ctx->textures.size(); i++) {
         if (ctx->textures[i] == nullptr) {
             ctx->textures[i] = texture;
-            texture->arrayIndex = (int)i;
+            texture->setIndex((int)i);
             break;
         }
     }
-    if (texture->arrayIndex < 0) {
+    if (texture->getIndex() < 0) {
         if (ctx->textures.size() >= 512) {
             g_lastError = "RT64_CreateTexture: all 512 texture slots are in use";
             delete texture;
             return nullptr;
         }
-        texture->arrayIndex = (int)ctx->textures.size();
+        texture->setIndex((int)ctx->textures.size());
         ctx->textures.push_back(texture);
     }
     /* No dirty flag needed: RT64_DrawDevice rewrites the descriptor set every
@@ -643,7 +703,13 @@ DLLEXPORT void RT64_SetViewDescription(RT64_VIEW *view, RT64_VIEW_DESC desc) {
     }
 }
 DLLEXPORT void RT64_SetViewSkyPlane(RT64_VIEW *view, RT64_TEXTURE *texture) {
-    (void)view; (void)texture;
+    RT64::ViewVK *v = (RT64::ViewVK *)view;
+    if (v == nullptr) {
+        g_lastError = "RT64_SetViewSkyPlane called with a null view";
+        return;
+    }
+    RT64::TextureVK *t = (RT64::TextureVK *)texture;
+    v->setSkyPlaneIndex((t != nullptr) ? t->getIndex() : -1);
 }
 DLLEXPORT RT64_INSTANCE *RT64_GetViewRaytracedInstanceAt(RT64_VIEW *view,
                                                          int x, int y) {

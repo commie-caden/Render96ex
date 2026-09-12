@@ -324,9 +324,23 @@ static void gfx_sdl_onkeyup(int scancode) {
         kb_key_up(translate_scancode(scancode));
 }
 
+/* RT64's inspector needs to see raw SDL events. On Windows the renderer got
+   them from the window procedure; here the only place they exist is this
+   loop, so the renderer registers a hook. Returning true means the UI consumed
+   the event and the game should ignore it — otherwise the camera moves while
+   you drag a slider. */
+static bool (*gfx_sdl_event_hook)(void *sdl_event) = NULL;
+
+void gfx_sdl_set_event_hook(bool (*hook)(void *sdl_event)) {
+    gfx_sdl_event_hook = hook;
+}
+
 static void gfx_sdl_handle_events(void) {
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
+        if ((gfx_sdl_event_hook != NULL) && gfx_sdl_event_hook(&event)) {
+            continue;
+        }
         switch (event.type) {
 #ifndef TARGET_WEB
             // Scancodes are broken in Emscripten SDL2: https://bugzilla.libsdl.org/show_bug.cgi?id=3259

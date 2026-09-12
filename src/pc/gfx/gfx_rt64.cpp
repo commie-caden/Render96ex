@@ -553,6 +553,22 @@ static void gfx_rt64_wapi_get_dimensions(uint32_t *width, uint32_t *height) {
 	gfx_sdl.get_dimensions(width, height);
 }
 
+#ifndef _WIN32
+extern "C" void gfx_sdl_set_event_hook(bool (*hook)(void *sdl_event));
+
+/* Forwards SDL events to the inspector. rt64.h fixes this signature so the
+   function-pointer table matches Win32, where these are a window message and
+   its parameters; on Linux msg is unused and wParam carries the event pointer,
+   which is why it is the 64-bit one. */
+static bool gfx_rt64_inspector_event(void *sdl_event) {
+	if ((RT64.renderInspector == nullptr) || (RT64.lib.HandleMessageInspector == nullptr)) {
+		return false;
+	}
+	return RT64.lib.HandleMessageInspector(RT64.renderInspector, 0,
+	                                       (RT64_WPARAM)(uintptr_t)sdl_event, 0);
+}
+#endif
+
 static void gfx_rt64_wapi_handle_events(void) {
 	// VULKAN PORT: gfx_sdl pumps SDL events and applies configWindow changes.
 	gfx_sdl.handle_events();
@@ -1867,6 +1883,11 @@ void gfx_rt64_render_thread() {
 		// Create or destroy the inspector depending on the current state of the flag.
 		if (RT64.renderInspectorActive && (RT64.renderInspector == nullptr)) {
 			RT64.renderInspector = RT64.lib.CreateInspector(RT64.device);
+#ifndef _WIN32
+			if (RT64.renderInspector != nullptr) {
+				gfx_sdl_set_event_hook(gfx_rt64_inspector_event);
+			}
+#endif
 		}
 		else if (!RT64.renderInspectorActive && (RT64.renderInspector != nullptr)) {
 			RT64.lib.DestroyInspector(RT64.renderInspector);

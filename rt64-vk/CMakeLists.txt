@@ -45,6 +45,13 @@ if(RT64_BUILD_STUB)
         src/vulkan/rt64_rt_pipeline_vk.cpp
         src/vulkan/rt64_compose_vk.cpp
         src/vulkan/rt64_paths_vk.cpp
+        src/vulkan/rt64_inspector_vk.cpp
+        third_party/imgui/imgui.cpp
+        third_party/imgui/imgui_draw.cpp
+        third_party/imgui/imgui_tables.cpp
+        third_party/imgui/imgui_widgets.cpp
+        third_party/imgui/backends/imgui_impl_sdl2.cpp
+        third_party/imgui/backends/imgui_impl_vulkan.cpp
         src/vulkan/rt64_vma_impl.cpp
     )
 else()
@@ -102,7 +109,16 @@ target_include_directories(rt64
 )
 target_include_directories(rt64 SYSTEM PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/contrib/vma
+    # Dear ImGui powers the inspector. Vendored rather than found: the port has
+    # to build on distros that do not package it, and the Vulkan backend needs
+    # the dynamic-rendering support only recent versions have. SYSTEM so its
+    # warnings stay out of our build output.
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui
 )
+
+# An undefined symbol in a shared library is not an error by default, so a
+# source file missing from the list above links cleanly and fails at runtime.
+target_link_options(rt64 PRIVATE "LINKER:--no-undefined")
 
 target_link_libraries(rt64 PRIVATE Vulkan::Vulkan PkgConfig::SDL2 ${CMAKE_DL_LIBS})
 
@@ -246,6 +262,10 @@ if(RT64_BUILD_SHADERS)
 endif()
 
 # A known scene for judging shading and lights. Needs a GPU.
+add_executable(rt64_dds_test tests/dds_test.cpp)
+target_include_directories(rt64_dds_test PRIVATE ${RT64_PUBLIC_INCLUDE})
+add_test(NAME rt64_dds_test COMMAND rt64_dds_test)
+
 add_executable(rt64_lighting_test tests/lighting_test.cpp)
 target_include_directories(rt64_lighting_test PRIVATE ${RT64_PUBLIC_INCLUDE})
 target_link_libraries(rt64_lighting_test PRIVATE rt64 PkgConfig::SDL2 ${CMAKE_DL_LIBS})

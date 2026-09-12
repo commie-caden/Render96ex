@@ -151,7 +151,7 @@ bool SceneVK::updateInstanceBuffers(std::string &error) {
         RT64_MATERIAL material = desc.material;
         auto slotOf = [](RT64_TEXTURE *tex) -> int {
             TextureVK *t = (TextureVK *)tex;
-            return (t != nullptr) ? t->arrayIndex : -1;
+            return (t != nullptr) ? t->getIndex() : -1;
         };
         if (desc.diffuseTexture != nullptr) {
             material.diffuseTexIndex = slotOf(desc.diffuseTexture);

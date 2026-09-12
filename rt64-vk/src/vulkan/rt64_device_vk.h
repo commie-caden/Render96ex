@@ -39,6 +39,10 @@ public:
 
     VkInstance         getInstance()       const { return instance; }
     VkPhysicalDevice   getPhysicalDevice() const { return physicalDevice; }
+
+    /* BC support is universal on desktop but not guaranteed by the spec, so
+       the DDS path asks before assuming. */
+    bool supportsSampledFormat(VkFormat format) const;
     VkDevice           getDevice()         const { return device; }
     VkQueue            getGraphicsQueue()  const { return graphicsQueue; }
     uint32_t           getGraphicsFamily() const { return graphicsFamily; }
